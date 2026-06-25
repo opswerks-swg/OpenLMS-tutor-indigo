@@ -557,30 +557,6 @@
   --pgn-color-danger-800: #9A3412;
   --pgn-color-danger-900: #7C2D12;
 
-    /* ---- Light (Slate) ---- */
-  --pgn-color-light-50:  #F8FAFC;
-  --pgn-color-light-100: #FFFFFF;
-  --pgn-color-light-200: #FFFFFF;
-  --pgn-color-light-300: #CBD5E1;
-  --pgn-color-light-400: #94A3B8;
-  --pgn-color-light-500: #64748B;
-  --pgn-color-light-600: #475569;
-  --pgn-color-light-700: #334155;
-  --pgn-color-light-800: #1E293B;
-  --pgn-color-light-900: #0F172A;
-
-  /* ---- Dark (Slate) ---- */
-  --pgn-color-dark-50:  #F8FAFC;
-  --pgn-color-dark-100: #FFFFFF;
-  --pgn-color-dark-200: #E2E8F0;
-  --pgn-color-dark-300: #CBD5E1;
-  --pgn-color-dark-400: #94A3B8;
-  --pgn-color-dark-500: #64748B;
-  --pgn-color-dark-600: #475569;
-  --pgn-color-dark-700: #334155;
-  --pgn-color-dark-800: #1E293B;
-  --pgn-color-dark-900: #0F172A;
-
   /* ---- Accent ---- */
   --pgn-color-accent-a: #00bbf9;
   --pgn-color-accent-b: #ffee88;
@@ -596,6 +572,18 @@
   --pgn-color-error-700: #B91C1C;
   --pgn-color-error-800: #991B1B;
   --pgn-color-error-900: #7F1D1D;
+
+  /* ---- Light (Slate) ---- */
+  --pgn-color-slate-100: #F8FAFC;
+  --pgn-color-slate-200: #F1F5F9;
+  --pgn-color-slate-300: #E2E8F0;
+  --pgn-color-slate-400: #CBD5E1;
+  --pgn-color-slate-500: #94A3B8;
+  --pgn-color-slate-600: #64748B;
+  --pgn-color-slate-700: #475569;
+  --pgn-color-slate-800: #334155;
+  --pgn-color-slate-900: #1E293B;
+
 
   /* ================================================================
      COMPONENT-LEVEL COLOR TOKENS
