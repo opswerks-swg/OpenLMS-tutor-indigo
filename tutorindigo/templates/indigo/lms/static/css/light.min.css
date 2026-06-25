@@ -559,7 +559,7 @@
 
     /* ---- Light (Slate) ---- */
   --pgn-color-light-50:  #F8FAFC;
-  --pgn-color-light-100: #F1F5F9;
+  --pgn-color-light-100: #FFFFFF;
   --pgn-color-light-200: #FFFFFF;
   --pgn-color-light-300: #CBD5E1;
   --pgn-color-light-400: #94A3B8;
@@ -571,7 +571,7 @@
 
   /* ---- Dark (Slate) ---- */
   --pgn-color-dark-50:  #F8FAFC;
-  --pgn-color-dark-100: #F1F5F9;
+  --pgn-color-dark-100: #FFFFFF;
   --pgn-color-dark-200: #E2E8F0;
   --pgn-color-dark-300: #CBD5E1;
   --pgn-color-dark-400: #94A3B8;
@@ -1283,7 +1283,7 @@ body {
   font-size: var(--pgn-font-size-base);
   line-height: var(--pgn-line-height-base);
   color: var(--pgn-color-body-color);
-  background: #f4f6f8;
+  background: var(--pgn-color-body-bg);
 }
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: var(--pgn-color-gray-100); }
@@ -1329,7 +1329,7 @@ body {
 
 /* ── Direct dropdown override (bypass var chain) ── */
 .dropdown-menu {
-  background-color: #fff !important;
+  background-color: var(--pgn-color-body-bg) !important;
   border-radius: 6px !important;
   border: 1px solid rgba(0,0,0,.08) !important;
   box-shadow: 0 4px 6px -2px rgba(0,0,0,.05), 0 10px 15px -3px rgba(0,0,0,.1) !important;
