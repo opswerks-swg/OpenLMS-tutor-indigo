@@ -1,3 +1,99 @@
+@font-face {
+  font-family: "Rockford Sans";
+  src: url("https://{{ LMS_HOST }}/static/indigo/fonts/RockfordSans-Extralight.otf") format("opentype");
+  font-weight: 200;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Rockford Sans";
+  src: url("https://{{ LMS_HOST }}/static/indigo/fonts/RockfordSans-ExtralightItalic.otf") format("opentype");
+  font-weight: 200;
+  font-style: italic;
+}
+@font-face {
+  font-family: "Rockford Sans";
+  src: url("https://{{ LMS_HOST }}/static/indigo/fonts/RockfordSans-Light.otf") format("opentype");
+  font-weight: 300;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Rockford Sans";
+  src: url("https://{{ LMS_HOST }}/static/indigo/fonts/RockfordSans-LightItalic.otf") format("opentype");
+  font-weight: 300;
+  font-style: italic;
+}
+@font-face {
+  font-family: "Rockford Sans";
+  src: url("https://{{ LMS_HOST }}/static/indigo/fonts/RockfordSans-Regular.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Rockford Sans";
+  src: url("https://{{ LMS_HOST }}/static/indigo/fonts/RockfordSans-RegularItalic.otf") format("opentype");
+  font-weight: 400;
+  font-style: italic;
+}
+@font-face {
+  font-family: "Rockford Sans";
+  src: url("https://{{ LMS_HOST }}/static/indigo/fonts/RockfordSans-Medium.otf") format("opentype");
+  font-weight: 500;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Rockford Sans";
+  src: url("https://{{ LMS_HOST }}/static/indigo/fonts/RockfordSans-MediumItalic.otf") format("opentype");
+  font-weight: 500;
+  font-style: italic;
+}
+@font-face {
+  font-family: "Rockford Sans";
+  src: url("https://{{ LMS_HOST }}/static/indigo/fonts/RockfordSans-Medium.otf") format("opentype");
+  font-weight: 600;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Rockford Sans";
+  src: url("https://{{ LMS_HOST }}/static/indigo/fonts/RockfordSans-MediumItalic.otf") format("opentype");
+  font-weight: 600;
+  font-style: italic;
+}
+@font-face {
+  font-family: "Rockford Sans";
+  src: url("https://{{ LMS_HOST }}/static/indigo/fonts/RockfordSans-Bold.otf") format("opentype");
+  font-weight: 700;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Rockford Sans";
+  src: url("https://{{ LMS_HOST }}/static/indigo/fonts/RockfordSans-BoldItalic.otf") format("opentype");
+  font-weight: 700;
+  font-style: italic;
+}
+@font-face {
+  font-family: "Rockford Sans";
+  src: url("https://{{ LMS_HOST }}/static/indigo/fonts/RockfordSans-Extrabold.otf") format("opentype");
+  font-weight: 800;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Rockford Sans";
+  src: url("https://{{ LMS_HOST }}/static/indigo/fonts/RockfordSans-ExtraboldItalic.otf") format("opentype");
+  font-weight: 800;
+  font-style: italic;
+}
+@font-face {
+  font-family: "Rockford Sans";
+  src: url("https://{{ LMS_HOST }}/static/indigo/fonts/RockfordSans-Heavy.otf") format("opentype");
+  font-weight: 900;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Rockford Sans";
+  src: url("https://{{ LMS_HOST }}/static/indigo/fonts/RockfordSans-HeavyItalic.otf") format("opentype");
+  font-weight: 900;
+  font-style: italic;
+}
 :root {
 
   /* ================================================================
@@ -321,7 +417,7 @@
      ================================================================ */
 
   /* Font families */
-  --pgn-font-family-base:      Inter, "Segoe UI", Roboto, "Open Sans", -apple-system, sans-serif;
+  --pgn-font-family-base:      "Rockford Sans", "Segoe UI", Roboto, "Open Sans", -apple-system, sans-serif;
   --pgn-font-family-monospace: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   --pgn-font-family-heading:   var(--pgn-font-family-base);
 
@@ -354,7 +450,7 @@
   --pgn-font-weight-bold:    700;
 
   /* Heading weights ($headings-font-weight) */
-  --pgn-headings-font-weight: 700;
+  --pgn-headings-font-weight: 400;
   --pgn-headings-line-height: 1.25;
   --pgn-headings-margin-bottom: 0.5rem;
 
@@ -983,6 +1079,8 @@
 .text-gray-900 { color: var(--color-gray-900); }
 .bg-gray-900 { background-color: var(--color-gray-900); }
 .border-gray-900 { border-color: var(--color-gray-900); }
+.text-black { color: #000000; }
+.text-white { color: #ffffff; }
 
 .p-0 { padding: 0px; }
 .px-0 { padding-left: 0px; padding-right: 0px; }
