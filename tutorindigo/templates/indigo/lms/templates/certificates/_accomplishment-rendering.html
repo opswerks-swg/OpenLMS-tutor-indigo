@@ -1,20 +1,36 @@
 <%page expression_filter="h"/>
-<%! from django.utils.translation import gettext as _ %>
+<%!
+import re
+from django.utils.translation import gettext as _
+
+def lw_certificate_learner_name(name):
+    if not name:
+        return ''
+    return re.sub(r'\s*\([^)]*\)\s*$', '', str(name)).strip()
+%>
 <%namespace name='static' file='../static_content.html'/>
 
 ## Duration is stored on CourseCertificateMeta and shown on the Profile modal only.
 ## Open edX certificate context does not include durationHours; omit here by design.
 
 <div class="lw-certificate-artboard">
+  <img
+      class="lw-certificate-artboard__watermark"
+      src="${static.url('images/learningwerks-watermark.png')}"
+      alt=""
+      aria-hidden="true"
+  />
   <div class="lw-certificate-artboard__content">
     <img
       class="lw-certificate-artboard__logo"
       src="${static.url('images/learningwerks-logo.svg')}"
       alt="${platform_name}"
     />
-    <h1 class="lw-certificate-artboard__title">${_("Certificate of Completion")}</h1>
-    <p class="lw-certificate-artboard__presented-to">${_("This Certificate is Proudly Presented to")}</p>
-    <p class="lw-certificate-artboard__learner-name">${accomplishment_copy_name}</p>
+    <div class="lw-certificate-artboard__heading">
+      <h1 class="lw-certificate-artboard__title">${_("Certificate of Completion")}</h1>
+      <p class="lw-certificate-artboard__presented-to">${_("This Certificate is Proudly Presented to")}</p>
+    </div>
+    <p class="lw-certificate-artboard__learner-name">${lw_certificate_learner_name(accomplishment_copy_name)}</p>
     <p class="lw-certificate-artboard__completing">${_("for successfully completing the course")}</p>
     <p class="lw-certificate-artboard__course-name">${accomplishment_copy_course_name}</p>
     <p class="lw-certificate-artboard__statement">
@@ -22,13 +38,13 @@
     </p>
     <div class="lw-certificate-artboard__metadata">
       <p class="lw-certificate-artboard__meta-line">
-        ${_("Completion Date:")} ${certificate_date_issued}
+        ${_("Completion Date: {date}").format(date=certificate_date_issued)}
       </p>
       <p class="lw-certificate-artboard__meta-line">
-        ${certificate_id_number_title}: ${certificate_id_number}
+        ${_("Certificate ID: {certificate_id}").format(certificate_id=certificate_id_number)}
       </p>
       <p class="lw-certificate-artboard__meta-line">
-        ${_("Provider:")} SSED
+        ${_("Provider: {provider}").format(provider="SSED")}
       </p>
     </div>
   </div>

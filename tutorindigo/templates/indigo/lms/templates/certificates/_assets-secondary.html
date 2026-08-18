@@ -1,0 +1,11 @@
+<script type="text/javascript">
+    var printAction = document.getElementById("action-print-view");
+    if (printAction) {
+        printAction.addEventListener("click", printView);
+    }
+
+    function printView(event) {
+       event.preventDefault();
+       window.print();
+    }
+</script>
