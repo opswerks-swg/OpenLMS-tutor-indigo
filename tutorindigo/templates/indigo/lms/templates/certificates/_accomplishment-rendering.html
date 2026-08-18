@@ -1,0 +1,35 @@
+<%page expression_filter="h"/>
+<%! from django.utils.translation import gettext as _ %>
+<%namespace name='static' file='../static_content.html'/>
+
+## Duration is stored on CourseCertificateMeta and shown on the Profile modal only.
+## Open edX certificate context does not include durationHours; omit here by design.
+
+<div class="lw-certificate-artboard">
+  <div class="lw-certificate-artboard__content">
+    <img
+      class="lw-certificate-artboard__logo"
+      src="${static.url('images/learningwerks-logo.svg')}"
+      alt="${platform_name}"
+    />
+    <h1 class="lw-certificate-artboard__title">${_("Certificate of Completion")}</h1>
+    <p class="lw-certificate-artboard__presented-to">${_("This Certificate is Proudly Presented to")}</p>
+    <p class="lw-certificate-artboard__learner-name">${accomplishment_copy_name}</p>
+    <p class="lw-certificate-artboard__completing">${_("for successfully completing the course")}</p>
+    <p class="lw-certificate-artboard__course-name">${accomplishment_copy_course_name}</p>
+    <p class="lw-certificate-artboard__statement">
+      ${_("This certifies that the learner has demonstrated commitment, participation, and completion of all required learning activities and assessments associated with the program.")}
+    </p>
+    <div class="lw-certificate-artboard__metadata">
+      <p class="lw-certificate-artboard__meta-line">
+        ${_("Completion Date:")} ${certificate_date_issued}
+      </p>
+      <p class="lw-certificate-artboard__meta-line">
+        ${certificate_id_number_title}: ${certificate_id_number}
+      </p>
+      <p class="lw-certificate-artboard__meta-line">
+        ${_("Provider:")} SSED
+      </p>
+    </div>
+  </div>
+</div>

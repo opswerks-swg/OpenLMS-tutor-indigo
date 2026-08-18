@@ -1,78 +1,184 @@
-// Include custom cirtificate
+@import url('https://fonts.googleapis.com/css2?family=Google+Sans+Code:wght@400&family=Google+Sans+Flex:opsz,wght@8..144,400;8..144,500;8..144,700&display=swap');
+
+$lw-cert-text: #1E293B;
+$lw-cert-muted: #64748B;
+$lw-cert-border: #E2E8F0;
+$lw-cert-font: 'Google Sans Flex', 'Inter', sans-serif;
+$lw-cert-code-font: 'Google Sans Code', monospace;
 
 body.certificate {
-    .wrapper-header {
-        padding: 0;
-    }
-    .accomplishment-metadata {
-        .recipient-img {
-            display: none;
-        }
-        .recipient-name, .recipient-username {
-            margin: 0;
-        }
-    }
-    .layout-accomplishment {
-        .wrapper-introduction {
-            padding: 0;
-        }
-    }
+    background: #FFFFFF !important;
+    color: $lw-cert-text;
+
+    .wrapper-header,
+    .wrapper-footer,
+    .header-app,
+    .banner-user,
+    .introduction,
+    .wrapper-accomplishment-metadata,
+    aside.about,
     .wrapper-about {
-        padding: 20px 0 0 !important;
+        display: none !important;
     }
-    .header-app, .banner-user, .introduction, .wrapper-accomplishment-metadata, .wrapper-accomplishment-rendering, .introduction, aside.about {
-        display: block;
-        max-width: 1600px !important;
+
+    .layout-accomplishment {
+        max-width: 720px;
         margin: 0 auto;
-        padding: 0 15px !important;
-        box-sizing: border-box;
-        .header-app-title {
-            text-align: left;
-            a {
-                display: inline-block;
-                vertical-align: top;
-                width: 45px;
-                margin: 10px 0;
-            }
-        }
+        padding: 48px 16px;
     }
+
+    .wrapper-accomplishment-rendering {
+        display: block;
+        max-width: none !important;
+        margin: 0;
+        padding: 0 !important;
+    }
+
     &.indigo-dark-theme {
-        background: $body-bg-d;
-        color: $text-color-d;
-        .banner-user .message-actions .action {
-            background: none !important;
-            text-shadow: none;
-            color: $text-color-d !important;
-        }
-        .wrapper-header {
-            background: $body-bg-d;
-            border-bottom: 1px solid $border-color;
-        }
-        &.layout-accomplishment.certificate-honor .accomplishment-main {
-            background: $primary-light-d;
-        }
-        .depth-card, .accomplishment-brief, .accomplishment-rendering {
-            background: $body-bg-d;
-        }
-        .accomplishment-rendering .accomplishment-type-label,
-        .accomplishment-metadata .metadata .value {
-            color: $text-color-d;
+        background: #FFFFFF !important;
+        color: $lw-cert-text;
+
+        .depth-card,
+        .accomplishment-brief,
+        .accomplishment-rendering,
+        .accomplishment-main {
+            background: #FFFFFF !important;
+            color: $lw-cert-text !important;
         }
     }
 }
+
+.lw-certificate-artboard {
+    position: relative;
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 445px;
+    margin: 0 auto;
+    padding: 32px 24px;
+    border: 1px solid $lw-cert-border;
+    border-radius: 12px;
+    background-color: #FFFFFF;
+    background-image: url('#{$static-path}/images/learningwerks-watermark.svg');
+    background-repeat: repeat;
+    background-size: 80px 80px;
+    background-position: center;
+    overflow: hidden;
+
+    &__content {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 16px;
+        text-align: center;
+        font-family: $lw-cert-font;
+    }
+
+    &__logo {
+        display: block;
+        width: 180px;
+        max-width: 100%;
+        height: auto;
+    }
+
+    &__title {
+        margin: 0;
+        font-family: $lw-cert-font;
+        font-size: 24px;
+        font-weight: 700;
+        line-height: 1.2;
+        color: $lw-cert-text;
+    }
+
+    &__presented-to,
+    &__completing {
+        margin: 0;
+        font-family: $lw-cert-font;
+        font-size: 14px;
+        font-weight: 400;
+        line-height: 21px;
+        color: $lw-cert-text;
+    }
+
+    &__learner-name {
+        margin: 0;
+        font-family: $lw-cert-font;
+        font-size: 22px;
+        font-weight: 700;
+        font-style: italic;
+        line-height: 1.2;
+        color: $lw-cert-text;
+    }
+
+    &__course-name {
+        margin: 0;
+        font-family: $lw-cert-font;
+        font-size: 16px;
+        font-weight: 700;
+        font-style: italic;
+        line-height: 1.2;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+        color: $lw-cert-text;
+    }
+
+    &__statement {
+        max-width: 360px;
+        margin: 0;
+        font-family: $lw-cert-font;
+        font-size: 12px;
+        font-weight: 400;
+        line-height: 18px;
+        color: $lw-cert-text;
+    }
+
+    &__metadata {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        width: 100%;
+        max-width: 360px;
+    }
+
+    &__meta-line {
+        margin: 0;
+        font-family: $lw-cert-code-font;
+        font-size: 12px;
+        font-weight: 400;
+        line-height: 18px;
+        color: $lw-cert-muted;
+    }
+}
+
 @media print {
+    body.certificate,
     body.indigo-dark-theme.certificate {
-        background: white;
-        color: black;
-        &.layout-accomplishment.certificate-honor .accomplishment-main {
-            background: white;
+        background: #FFFFFF !important;
+        color: $lw-cert-text !important;
+
+        .wrapper-header,
+        .wrapper-footer,
+        .header-app,
+        .banner-user,
+        .introduction,
+        .wrapper-accomplishment-metadata,
+        aside.about,
+        .wrapper-about {
+            display: none !important;
         }
-        .depth-card, .accomplishment-brief, .accomplishment-rendering {
-            background: white;
+
+        .lw-certificate-artboard {
+            border: none;
+            box-shadow: none;
         }
-        .accomplishment-rendering .accomplishment-type-label,
-        .accomplishment-metadata .metadata .value {
-            color: black;
+
+        .depth-card,
+        .accomplishment-brief,
+        .accomplishment-rendering,
+        .accomplishment-main {
+            background: #FFFFFF !important;
+            color: $lw-cert-text !important;
         }
     }
 }
