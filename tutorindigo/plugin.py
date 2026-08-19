@@ -24,7 +24,7 @@ config: t.Dict[str, t.Dict[str, t.Any]] = {
     "defaults": {
         "VERSION": __version__,
         "WELCOME_MESSAGE": "The place for all your online learning",
-        "PRIMARY_COLOR": "#15376D",  # Indigo
+        "PRIMARY_COLOR": "#003366",  # Indigo
         "ENABLE_DARK_TOGGLE": True,
         # Footer links are dictionaries with a "title" and "url"
         # To remove all links, run:
@@ -201,19 +201,6 @@ for mfe in indigo_styled_mfes:
             mfe,
             "org.openedx.frontend.layout.footer.v1",
             """
-            {
-                op: PLUGIN_OPERATIONS.Hide,
-                widgetId: 'default_contents',
-            },
-            {
-                op: PLUGIN_OPERATIONS.Insert,
-                widget: {
-                    id: 'indigo_footer',
-                    type: DIRECT_PLUGIN,
-                    priority: 1,
-                    RenderWidget: IndigoFooter,
-                },
-            },
             {
                 op: PLUGIN_OPERATIONS.Insert,
                 widget: {

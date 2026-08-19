@@ -1,1 +1,130 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+///////// Sans (Rockford Sans)
+@font-face {
+  font-family: 'Rockford Sans';
+  src:
+    url('#{$static-path}/fonts/RockfordSans-Extralight.otf') format('opentype');
+  font-weight: 200;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Rockford Sans';
+  src:
+    url('#{$static-path}/fonts/RockfordSans-ExtralightItalic.otf') format('opentype');
+  font-weight: 200;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: 'Rockford Sans';
+  src:
+    url('#{$static-path}/fonts/RockfordSans-Light.otf') format('opentype');
+  font-weight: 300;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Rockford Sans';
+  src:
+    url('#{$static-path}/fonts/RockfordSans-LightItalic.otf') format('opentype');
+  font-weight: 300;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: 'Rockford Sans';
+  src:
+    url('#{$static-path}/fonts/RockfordSans-Regular.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Rockford Sans';
+  src:
+    url('#{$static-path}/fonts/RockfordSans-RegularItalic.otf') format('opentype');
+  font-weight: 400;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: 'Rockford Sans';
+  src:
+    url('#{$static-path}/fonts/RockfordSans-Medium.otf') format('opentype');
+  font-weight: 500;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Rockford Sans';
+  src:
+    url('#{$static-path}/fonts/RockfordSans-MediumItalic.otf') format('opentype');
+  font-weight: 500;
+  font-style: italic;
+}
+
+// Alias 600 to Medium (no dedicated SemiBold cut) so `font-weight: 600;`
+// rules get an exact match instead of rounding up to Bold.
+@font-face {
+  font-family: 'Rockford Sans';
+  src:
+    url('#{$static-path}/fonts/RockfordSans-Medium.otf') format('opentype');
+  font-weight: 600;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Rockford Sans';
+  src:
+    url('#{$static-path}/fonts/RockfordSans-MediumItalic.otf') format('opentype');
+  font-weight: 600;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: 'Rockford Sans';
+  src:
+    url('#{$static-path}/fonts/RockfordSans-Bold.otf') format('opentype');
+  font-weight: 700;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Rockford Sans';
+  src:
+    url('#{$static-path}/fonts/RockfordSans-BoldItalic.otf') format('opentype');
+  font-weight: 700;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: 'Rockford Sans';
+  src:
+    url('#{$static-path}/fonts/RockfordSans-Extrabold.otf') format('opentype');
+  font-weight: 800;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Rockford Sans';
+  src:
+    url('#{$static-path}/fonts/RockfordSans-ExtraboldItalic.otf') format('opentype');
+  font-weight: 800;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: 'Rockford Sans';
+  src:
+    url('#{$static-path}/fonts/RockfordSans-Heavy.otf') format('opentype');
+  font-weight: 900;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Rockford Sans';
+  src:
+    url('#{$static-path}/fonts/RockfordSans-HeavyItalic.otf') format('opentype');
+  font-weight: 900;
+  font-style: italic;
+}
