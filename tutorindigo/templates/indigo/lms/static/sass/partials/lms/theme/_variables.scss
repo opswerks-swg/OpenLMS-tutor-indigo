@@ -1,5 +1,8 @@
-$primary: {{ INDIGO_PRIMARY_COLOR }};
-$primary-light: #F2F7F8;
+// ============================================================
+//  OpenLMS Brand Variables — drop-in override for tutor-indigo
+//  Place this file at:
+//    tutorindigo/templates/indigo/lms/static/sass/partials/lms/theme/_variables.scss
+// ============================================================
 
 // Theme fonts
 $font-family-title: 'Rockford Sans', sans-serif;
@@ -10,13 +13,33 @@ $headings-font-weight: 400;
 // Initialize the Open edX Bootstrap theme
 @import 'edx-bootstrap/sass/open-edx/theme';
 
+// ── Layout ───────────────────────────────────────────────────
+$dark:        #111827;
+$light-dark:  #1e293b;
+$big-screen:  1200px;
 
-// Introducing new variables
+// ── Dark-theme palette ───────────────────────────────────────
+$primary-d:         #AEC7F6;
+$primary-light-d:   #292A2C;
+$gray-light:        #E5E7EB;
+$gray-lighter:      #c8c8c8;
+$light-dark-d:      #374151;
+$text-color-d:      #F8F8F8;
+$text-color-primary:#DDDFE2;
+$border-color-d:    #777792;
+$light-overlay-d:   #36383B;
+$danger-d:          #FFA07A;
+$success-d:         #54CF5E;
+$btn-color-d:       #112F6B;
+$body-bg-d:         #0D0D0E;
 
-$dark: #111827;
-$light-dark: #374151;
-$big-screen: 1200px;
+$instructor-input-border-color:  $gray-lighter;
+$light-theme-switch-bg-color:    $primary;
+$dark-theme-switch-bg-color:     #717D8A;
 
+$warning-400:       #ffe340;
+$warning-700:       #9c4607;
+$warning-accent-700:#fffcf5;
 
 
 // Introducing dark-theme variables
