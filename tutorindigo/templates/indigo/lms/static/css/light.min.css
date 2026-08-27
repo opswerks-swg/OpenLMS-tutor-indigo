@@ -478,7 +478,7 @@
 .bg-slate-100 { background-color: var(--color-slate-100); }
 .border-slate-100 { border-color: var(--color-slate-100); }
 .text-slate-200 { color: var(--color-slate-200); }
-.bg-slate-200 { background-color: var(--color-slate-200); }
+.bg-slate-200 { background-color: var(--color-slate-200) !important; }
 .border-slate-200 { border-color: var(--color-slate-200); }
 .text-slate-300 { color: var(--color-slate-300); }
 .bg-slate-300 { background-color: var(--color-slate-300); }
@@ -795,7 +795,7 @@
   --pgn-size-nav-pills-link-border-width: 1px !important;
   --pgn-size-nav-tabs-link-border-bottom-width: 0.188rem !important;
   --pgn-size-nav-tabs-border-width: 2px !important;
-  --pgn-size-nav-tabs-border-radius: 0 !important;
+  --pgn-size-nav-tabs-border-radius: 6px !important;
   --pgn-size-navbar-nav-scroll-max-height: 75vh !important;
   --pgn-size-pagination-icon-width: 2.25rem !important;
   --pgn-size-pagination-icon-height: 2.25rem !important;
@@ -14937,28 +14937,29 @@ select.form-control {
   background-color: var(--pgn-color-nav-tabs-inverse-link-bg-active-hover);
 }
 .nav-tabs {
-  border-bottom: var(--pgn-size-nav-tabs-border-width) solid var(--pgn-color-nav-tabs-base-border-base);
+    border: 1px solid var(--pgn-color-nav-tabs-base-border-base) !important;
+    border-radius: 6px !important;
+    padding: 4px;
+    padding-left: 4px !important;
+    background: white;
 }
 .nav-tabs button.nav-link {
   border: none;
-  border-bottom: var(--pgn-size-nav-tabs-border-width) solid var(--pgn-color-nav-link-border);
 }
 .nav-tabs button.nav-link.disabled {
   border-color: var(--pgn-color-nav-tabs-base-link-disabled-border);
 }
 .nav-tabs .nav-link {
-  margin-bottom: calc(var(--pgn-size-nav-tabs-border-width) * -1);
-  border-top-left-radius: var(--pgn-size-nav-tabs-border-radius);
-  border-top-right-radius: var(--pgn-size-nav-tabs-border-radius);
+  margin-right: 0.25rem;
+  border-radius: var(--pgn-size-nav-tabs-border-radius);
 }
 .nav-tabs .nav-link:hover {
-  background-color: var(--pgn-color-nav-tabs-base-link-hover-bg);
+  background-color: var(--pgn-color-nav-tabs-base-link-active-bg) !important;
 }
 .nav-tabs .nav-link .dropdown {
   padding-bottom: 0.125rem;
 }
 .nav-tabs .nav-link:focus {
-  border-bottom: var(--pgn-size-nav-tabs-border-width) solid var(--pgn-color-nav-tabs-base-border-focus);
   position: relative;
   outline: 0;
   z-index: 200;
@@ -14981,11 +14982,11 @@ select.form-control {
 .nav-tabs .nav-item.show .nav-link {
   color: var(--pgn-color-nav-tabs-base-link-active-text);
   background-color: var(--pgn-color-nav-tabs-base-link-active-bg);
-  border-bottom: var(--pgn-size-nav-tabs-border-width) solid var(--pgn-border-color-nav-tabs-link-border-active);
+  border-bottom: none !important;
 }
 .nav-tabs .nav-link.active:hover,
 .nav-tabs .nav-item.show .nav-link:hover {
-  background-color: var(--pgn-color-nav-tabs-base-link-hover-bg);
+  background-color: var(--pgn-color-nav-tabs-base-link-active-bg);
 }
 .nav-tabs .nav-link.active:focus,
 .nav-tabs .nav-item.show .nav-link:focus {
@@ -15008,6 +15009,22 @@ select.form-control {
   margin-top: calc(var(--pgn-size-nav-tabs-border-width) * -1);
   border-top-left-radius: 0;
   border-top-right-radius: 0;
+}
+.nav-tabs.announcements-tabs {
+  display: inline-flex;
+  width: auto;
+}
+/* Paragon's Tabs overflow logic measures real tabs while they sit off-flow
+   (position: absolute), so a shrink-wrapped container sees only the hidden
+   "More" button on first paint and permanently overflows everything into it.
+   Keeping the placeholder tabs in normal flow (just invisible) gives the
+   container an accurate width from the start, so nothing ever overflows. */
+.announcements-tabs .pgn__tab_invisible:not(.pgn__tab_more) {
+  position: static;
+  left: auto;
+}
+.announcements-tabs .pgn__tab_more {
+  display: none !important;
 }
 .nav-pills .nav-link {
   border-radius: var(--pgn-size-nav-pills-border-radius);
@@ -18524,7 +18541,7 @@ select.form-control {
   --pgn-color-menu-item-bg: #00000000 !important;
   --pgn-color-nav-link-border: #00000000 !important;
   --pgn-color-nav-tabs-base-bg-hover: #00000000 !important;
-  --pgn-color-nav-tabs-base-link-active-bg: #00000000 !important;
+  --pgn-color-nav-tabs-base-link-active-bg: var(--pgn-color-primary-500) !important;
   --pgn-color-nav-tabs-inverse-link-bg-active-hover: #00000000 !important;
   --pgn-color-overflow-scroll-opacity-mask-transparent: #00000066 !important;
   --pgn-color-popover-border: #00000033 !important;
@@ -19309,7 +19326,7 @@ select.form-control {
   --pgn-color-modal-content-bg: var(--pgn-color-bg-base) !important;
   --pgn-color-nav-tabs-base-border-base: var(--pgn-color-light-400) !important;
   --pgn-color-nav-tabs-base-link-hover-bg: var(--pgn-color-light-400) !important;
-  --pgn-color-nav-tabs-base-link-active-text: var(--pgn-color-primary-500) !important;
+  --pgn-color-nav-tabs-base-link-active-text: var(--pgn-color-black) !important;
   --pgn-color-nav-tabs-inverse-link-border-bottom: var(--pgn-color-dark-300) !important;
   --pgn-color-nav-tabs-inverse-link-border-active: var(--pgn-color-nav-tabs-inverse-link-text-base) !important;
   --pgn-color-nav-tabs-inverse-link-bg-focus: var(--pgn-color-nav-tabs-inverse-link-text-base) !important;
