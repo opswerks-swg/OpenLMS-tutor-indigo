@@ -1,6 +1,7 @@
 <%page expression_filter="h"/>
 <%!
   import json
+  from django.conf import settings
   from django.utils.translation import gettext as _
   from openedx.core.djangolib.js_utils import js_escaped_string, dump_js_escaped_json
 %>
@@ -12,6 +13,40 @@
 <%namespace name='static' file='../static_content.html'/>
 <%block name="js_extra">
   <script type="text/javascript" src="${static.url('common/js/vendor/bootstrap.bundle.js')}"></script>
+  % if course_discovery_enabled:
+  <%
+    search_catalog_url = getattr(settings, 'SEARCH_CATALOG_URL', '/search/')
+  %>
+  <script type="text/javascript">
+    (function () {
+      var searchUrl = "${search_catalog_url | n, js_escaped_string}";
+      var params = new URLSearchParams(window.location.search);
+      var searchQuery = params.get('search_query');
+      if (searchQuery && searchQuery.trim()) {
+        window.location.replace(
+          searchUrl + '?q=' + encodeURIComponent(searchQuery.trim())
+        );
+        return;
+      }
+
+      document.addEventListener('DOMContentLoaded', function () {
+        var form = document.querySelector('#discovery-form form');
+        if (!form) {
+          return;
+        }
+        form.addEventListener('submit', function (event) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          var input = document.getElementById('discovery-input');
+          var query = input ? input.value.trim() : '';
+          if (query) {
+            window.location.href = searchUrl + '?q=' + encodeURIComponent(query);
+          }
+        }, true);
+      });
+    }());
+  </script>
+  % endif
 </%block>
 % if course_discovery_enabled:
 <%block name="header_extras">
