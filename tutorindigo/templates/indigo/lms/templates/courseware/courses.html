@@ -15,7 +15,7 @@
   <script type="text/javascript" src="${static.url('common/js/vendor/bootstrap.bundle.js')}"></script>
   % if course_discovery_enabled:
   <%
-    search_catalog_url = getattr(settings, 'SEARCH_CATALOG_URL', '/search/')
+    search_catalog_url = getattr(settings, 'SEARCH_CATALOG_URL', '/search')
   %>
   <script type="text/javascript">
     (function () {
