@@ -57,7 +57,7 @@ SVG_CLOSE = '</svg>'
       {"title": "My Courses", "url": reverse('dashboard'), "icon": "Home"},
       {"title": "Discover",   "url": "/courses",           "icon": "Search"},
   ])
-  search_url = next((l['url'] for l in nav_links if l.get('icon') == 'Search'), '/courses')
+  search_url = getattr(settings, 'SEARCH_CATALOG_URL', '/search')
 %>
 
 <div class="nav-links">
