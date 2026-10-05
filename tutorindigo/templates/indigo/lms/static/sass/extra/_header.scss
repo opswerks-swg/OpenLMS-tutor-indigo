@@ -1,4 +1,14 @@
 // Include custom header
+// Header geometry + nav colours mirror the MFE header (frontend-component-header
+// src/index.scss), which follows the OpenLMS Figma navbar frame.
+$lw-header-font-family: 'Google Sans Flex', sans-serif;
+$lw-header-height: 65px;
+$lw-header-item-height: 40px;
+$lw-nav-color: #1E293B;
+$lw-nav-pill-bg: #D9EFE8;
+$lw-nav-pill-color: #009368;
+$lw-nav-pill-radius: 6px;
+
 body {
     .nav-skip {
 
@@ -26,10 +36,17 @@ body {
 }
 
 header.global-header {
+    // Whole header uses Google Sans Flex (linked in header.html), like the MFE header.
+    // !important + every descendant: LMS globals force Rockford on body/button.
+    &,
+    *:not(.fa):not([class^="fa-"]):not([class*=" fa-"]) {
+        font-family: $lw-header-font-family !important;
+    }
+
     border: none;
     padding: 0;
     overflow: visible;
-    box-shadow: 0px 1px 2px 0px rgba(0, 0, 0, 0.06), 0px 1px 3px 0px rgba(0, 0, 0, 0.10);
+    box-shadow: 0 4px 4px 0 rgba(0, 0, 0, 0.04);
 
     &:after {
         content: "";
@@ -40,6 +57,7 @@ header.global-header {
     .main-header {
         display: flex;
         align-items: center;
+        min-height: $lw-header-height;
     }
 
     .header-logo {
@@ -49,13 +67,13 @@ header.global-header {
         a {
             display: flex;
             align-items: center;
-            padding: 1rem 0;
-            margin-left: 0;
-            margin-top: -0.05em;
+            padding: 0;
+            // Base theme gives this link a 15px top margin; zero it so the logo centres in the bar
+            margin: 0;
             .logo {
-                height: 28px;
+                height: 30px;
+                // No gap here: the nav centres between logo and right group (Figma space-between)
                 margin: 0;
-                margin-right: 1rem;
                 body.indigo-dark-theme & {
                     display: none;
                 }
@@ -63,7 +81,7 @@ header.global-header {
 
             .logo-white {
                 display: none;
-                height: 28px;
+                height: 30px;
 
                 body.indigo-dark-theme & {
                     display: inline-block;
@@ -87,50 +105,68 @@ header.global-header {
             display: flex;
             align-items: center;
             margin: 0;
-            gap: 0.5rem;
+            gap: 20px;
 
             .nav-tab {
+                // Centre pills on the same line as the search box (MFE .main-nav)
+                display: flex;
+                align-items: center;
+
                 a {
                     display: inline-flex;
                     align-items: center;
-                    gap: 0.375rem;
-                    font-size: 0.9rem;
-                    font-weight: 500;
-                    letter-spacing: 0.01em;
-                    padding: 5px 10px;
-                    border-radius: 8px;
-                    color: #374151;
+                    box-sizing: border-box;
+                    gap: 8px;
+                    height: $lw-header-item-height;
+                    font-size: 14px;
+                    font-weight: 400;
+                    line-height: 21px;
+                    letter-spacing: 0;
+                    padding: 8px 12px;
+                    // Cancels the base theme's -10px bottom margin; spacing comes from .main gap
+                    margin: 0;
+                    border-radius: $lw-nav-pill-radius;
+                    color: $lw-nav-color;
                     border-bottom: none;
                     text-decoration: none;
                     transition: background 150ms ease, color 150ms ease;
 
+                    // Hover keeps the regular weight; only the colours change
                     &:hover {
-                        background: #D1FAE5;
-                        color: #059669;
+                        background: $lw-nav-pill-bg;
+                        color: $lw-nav-pill-color;
+                        font-weight: 400;
                         border-bottom: 0;
                     }
 
                     &.active {
-                        background: #D1FAE5;
-                        color: #059669;
+                        background: $lw-nav-pill-bg;
+                        color: $lw-nav-pill-color;
                         font-weight: 700;
                         border-bottom: 0;
                     }
 
                     .lw-nav-icon {
-                        width: 1rem;
-                        height: 1rem;
+                        width: 24px;
+                        height: 24px;
                         flex-shrink: 0;
                     }
                 }
 
-                // Dropdown rows are plain list items, not pills
+                // Dropdown rows are plain list items, not pills (beat the .nav-tab a rules)
                 &.lw-nav-dropdown a.lw-nav-dropdown__item {
                     display: block;
-                    padding: 0.5rem 1rem;
-                    border-radius: 0;
+                    height: auto;
+                    padding: 8px 12px;
+                    border-radius: $lw-nav-pill-radius;
                     font-weight: 400;
-                    line-height: 1.5;
+                    line-height: 21px;
+
+                    &:hover,
+                    &:focus {
+                        background: none;
+                        color: $lw-nav-pill-color;
+                    }
                 }
             }
 
@@ -138,7 +174,7 @@ header.global-header {
             .lw-search-item {
                 display: inline-flex;
                 align-items: center;
-                margin-left: 0.75rem;
+                margin: 0;
 
                 // Suppress pill highlight on the search nav item
                 &:hover,
@@ -147,39 +183,72 @@ header.global-header {
                     color: inherit !important;
                 }
 
+                // Mirrors the MFE header (frontend-component-header .lw-search-wrapper):
+                // 233x40 bordered pill, 18px inline icon, transparent input.
                 .lw-search-wrapper {
-                    position: relative;
+                    box-sizing: border-box;
                     display: inline-flex;
                     align-items: center;
-                    margin-right: 0.5rem;
+                    gap: 8px;
+                    width: 233px;
+                    height: 40px;
+                    padding: 8px 12px;
+                    margin: 0;
+                    border-radius: 6px;
+                    border: 0;
+                    background: #F8FAFC;
+                    transition: border-color 150ms ease, background 150ms ease, box-shadow 150ms ease;
+
+                    &:focus-within {
+                        background: #fff;
+                        box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.16);
+
+                        .lw-search-icon {
+                            color: #059669;
+                        }
+                    }
 
                     .lw-search-icon {
-                        position: absolute;
-                        left: 0.625rem;
-                        width: 1rem;
-                        height: 1rem;
+                        position: static;
+                        flex-shrink: 0;
+                        width: 24px;
+                        height: 24px;
                         color: #64748B;
                         pointer-events: none;
                     }
 
                     .lw-search-input {
-                        border-radius: 6px;
-                        border: 1.5px solid #F8FAFC;
-                        padding: 0.375rem 1rem 0.375rem 2.125rem;
-                        font-size: 0.875rem;
-                        color: #374151;
-                        background: #f9fafb;
-                        width: 8rem;
+                        flex: 1;
+                        min-width: 0;
+                        width: auto;
+                        height: 21px;
+                        border: none;
+                        border-radius: 0;
+                        box-shadow: none;
+                        padding: 0;
+                        margin: 0;
+                        background: transparent;
                         outline: none;
-                        transition: border-color 150ms ease, background 150ms ease;
+                        font-family: inherit;
+                        font-size: 14px;
+                        line-height: 21px;
+                        letter-spacing: 0;
+                        color: #64748B;
 
                         &:focus {
-                            border-color: #9ca3af;
-                            background: #fff;
+                            border: none;
+                            background: transparent;
+                            box-shadow: none;
                         }
 
                         &::placeholder {
+                            font-family: inherit;
+                            font-weight: 400;
+                            font-size: 14px;
+                            line-height: 21px;
+                            letter-spacing: 0;
                             color: #64748B;
+                            opacity: 1;
                         }
 
                         &::-webkit-search-decoration,
@@ -194,27 +263,30 @@ header.global-header {
     }
 
     // Nav dropdowns (Browse, Help) — mirrors MFE header type: 'menu' items.
-    // Opens on hover and keyboard focus; no JS needed.
+    // Click-to-open only: the toggle script below adds .is-open.
     .lw-nav-dropdown {
         position: relative;
 
         .lw-nav-dropdown__toggle {
             display: inline-flex;
             align-items: center;
-            gap: 0.375rem;
-            font-size: 0.9rem;
-            font-weight: 500;
-            letter-spacing: 0.01em;
-            padding: 5px 10px;
+            box-sizing: border-box;
+            gap: 8px;
+            height: $lw-header-item-height;
+            font-size: 14px;
+            font-weight: 400;
+            letter-spacing: 0;
+            padding: 8px 12px;
+            margin: 0;
             border: 0;
-            border-radius: 8px;
+            border-radius: $lw-nav-pill-radius;
             background: none;
-            color: #374151;
+            color: $lw-nav-color;
             cursor: pointer;
             transition: background 150ms ease, color 150ms ease;
             // Undo LMS global <button> styles (navy fill, inset shadow, text-shadow)
             font-family: inherit;
-            line-height: 1.5;
+            line-height: 21px;
             text-shadow: none;
             box-shadow: none;
             background-image: none;
@@ -227,15 +299,22 @@ header.global-header {
                 background-image: none;
             }
 
+            &:hover {
+                background: $lw-nav-pill-bg;
+                color: $lw-nav-pill-color;
+                font-weight: 400;
+            }
+
             .lw-nav-icon {
-                width: 1rem;
-                height: 1rem;
+                width: 24px;
+                height: 24px;
                 flex-shrink: 0;
             }
 
             .lw-nav-chevron {
-                width: 0.875rem;
-                height: 0.875rem;
+                width: 12px;
+                height: 12px;
+                flex-shrink: 0;
             }
         }
 
@@ -245,46 +324,44 @@ header.global-header {
             top: 100%;
             left: 0;
             z-index: 1001;
-            min-width: 12rem;
-            padding: 0.5rem 0;
+            // Figma "Dropdown": hug the labels, 4px inset, 6px radius.
+            // border-box so the 118px minimum includes the inset, as in the MFE header.
+            box-sizing: border-box;
+            width: max-content;
+            min-width: 118px;
+            padding: 4px;
             margin-top: 0.25rem;
             background: #fff;
-            border-radius: 0.5rem;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
-
-            // Bridge the gap under the toggle so moving the pointer down keeps :hover
-            &::before {
-                content: '';
-                position: absolute;
-                top: -0.25rem;
-                left: 0;
-                right: 0;
-                height: 0.25rem;
-            }
+            border-radius: $lw-nav-pill-radius;
+            box-shadow: 0 4px 4px 0 rgba(0, 0, 0, 0.25);
         }
 
         .lw-nav-dropdown__item {
             display: block;
-            padding: 0.5rem 1rem;
-            font-size: 0.9rem;
+            padding: 8px 12px;
+            border-radius: $lw-nav-pill-radius;
+            font-size: 14px;
             font-weight: 400;
-            line-height: 1.5;
-            color: #374151;
+            line-height: 21px;
+            white-space: nowrap;
+            color: $lw-nav-color;
             text-decoration: none;
 
+            // No fill on hover; the label colour alone marks the row
             &:hover,
             &:focus {
-                background: #D1FAE5;
-                color: #059669;
+                background: none;
+                color: $lw-nav-pill-color;
             }
         }
 
-        // Open on hover (CSS) or via the toggle script (.is-open: click, keyboard)
-        &:hover,
+        // Open only via the toggle script (.is-open: click, keyboard), like the MFE header.
+        // Regular weight while open.
         &.is-open {
             .lw-nav-dropdown__toggle {
-                background: #D1FAE5;
-                color: #059669;
+                background: $lw-nav-pill-bg;
+                color: $lw-nav-pill-color;
+                font-weight: 400;
             }
 
             .lw-nav-dropdown__menu {
@@ -297,13 +374,14 @@ header.global-header {
             align-items: center;
 
             .lw-help-menu__toggle {
-                gap: 0.25rem;
-                padding: 0.375rem 0.5rem;
+                gap: 8px;
+                padding: 8px;
             }
 
             .lw-help-icon {
-                width: 1.375rem;
-                height: 1.375rem;
+                width: 24px;
+                height: 24px;
+                flex-shrink: 0;
             }
 
             .lw-nav-dropdown__menu {
@@ -322,23 +400,33 @@ header.global-header {
         margin: 0;
         position: relative;
         justify-content: end;
-        gap: 0.5rem;
+        gap: 12px;
 
         // Notifications bell — matches MFE .lw-notification-btn-wrapper
         .lw-notification-btn-wrapper {
             position: relative;
             display: inline-flex;
             align-items: center;
+
+            // notifications.js hides the bell when the tray is off; the display
+            // rule above would otherwise override the [hidden] attribute.
+            &[hidden] {
+                display: none;
+            }
         }
 
         .lw-notification-btn {
+            box-sizing: border-box;
+            width: $lw-header-item-height;
+            height: $lw-header-item-height;
             border: 0;
+            border-radius: $lw-nav-pill-radius;
             background: transparent;
-            padding: 0;
-            padding-right: 8px;
+            padding: 8px;
             cursor: pointer;
             display: inline-flex;
             align-items: center;
+            justify-content: center;
             box-shadow: none;
             outline: none;
             -webkit-appearance: none;
@@ -394,16 +482,26 @@ header.global-header {
         }
 
         // Avatar button
+        // Account menu toggle: 40px box around the 24px profile icon, like the MFE header
         .lw-avatar-btn {
             display: inline-flex;
             align-items: center;
-            gap: 0.25rem;
-            padding: 0.25rem 0.5rem;
-            background: $primary-light;
-            border-radius: 9999px;
+            justify-content: center;
+            box-sizing: border-box;
+            width: $lw-header-item-height;
+            height: $lw-header-item-height;
+            padding: 8px;
+            background: transparent;
+            border-radius: $lw-nav-pill-radius;
             cursor: pointer;
-            margin: 10px 0;
+            margin: 0;
             color: $primary;
+            transition: background 150ms ease;
+
+            &:hover,
+            &:focus-visible {
+                background: $lw-nav-pill-bg;
+            }
 
             &:after {
                 display: none;
@@ -416,16 +514,16 @@ header.global-header {
                 object-fit: cover;
             }
 
+            // Same profile icon colour as the MFE header (frontend-component-header)
             svg {
-                color: $primary;
+                color: #1E293B;
             }
         }
 
         .toggle-user-dropdown {
-            padding: 9px 15px;
+            padding: 8px;
             color: $primary;
             font-size: 14px;
-            background: 0;
             font-weight: 500;
             line-height: 20px;
             border-radius: 6px;
@@ -436,18 +534,29 @@ header.global-header {
             }
         }
 
+        // Account menu — same as the Browse / Help dropdowns (Figma "Dropdown"):
+        // hugs the labels (118px min), 4px inset, 6px radius, rows without dividers.
         .dropdown-user-menu {
             position: absolute;
             right: 0;
-            top: 60px;
-            width: 224px;
-            border-radius: 6px;
-            box-shadow: 0px 0px 0px 1px rgba(0, 0, 0, 0.05), 0px 4px 6px -2px rgba(0, 0, 0, 0.05), 0px 10px 15px -3px rgba(0, 0, 0, 0.10);
+            top: 100%;
+            z-index: 1001;
+            box-sizing: border-box;
+            width: max-content;
+            min-width: 118px;
+            padding: 4px;
+            margin-top: 0.25rem;
+            background: #fff;
+            border-radius: $lw-nav-pill-radius;
+            box-shadow: 0 4px 4px 0 rgba(0, 0, 0, 0.25);
             border: none;
-            overflow: hidden;
 
             .dropdown-item {
+                display: block;
+                padding: 0;
+                margin: 0;
                 border: none !important;
+                background: none;
 
                 &.hide-desktop {
                     @include media-breakpoint-up(lg) {
@@ -456,21 +565,27 @@ header.global-header {
                 }
 
                 &.lw-dropdown-divider {
-                    border-top: 1px solid #e5e7eb !important;
-                    margin-top: 4px;
-                    padding-top: 4px;
+                    margin: 0;
+                    padding: 0;
                 }
 
                 a {
+                    display: block;
                     box-sizing: border-box;
-                    padding: 10px;
+                    padding: 8px 12px;
+                    border-radius: $lw-nav-pill-radius;
                     font-size: 14px;
-                    line-height: 20px;
-                    color: $light-dark;
+                    font-weight: 400;
+                    line-height: 21px;
+                    white-space: nowrap;
+                    color: $lw-nav-color;
+                    text-decoration: none;
 
-                    &:hover {
-                        background: $primary-light;
-                        color: $dark;
+                    // No fill on hover; the label colour alone marks the row
+                    &:hover,
+                    &:focus {
+                        background: none;
+                        color: $lw-nav-pill-color;
                     }
                 }
             }
@@ -534,9 +649,16 @@ header.global-header {
     }
 }
 
+// 48px side gutters — same as the MFE header Container and the Figma navbar frame.
+// Phones keep the previous 36px so the logo / hamburger / bell row still fits.
 .header-container {
-    padding-right: calc(24px * 0.5 + 24px);
-    padding-left: calc(24px * 0.5 + 24px);
+    padding-right: 36px;
+    padding-left: 36px;
+
+    @include media-breakpoint-up(md) {
+        padding-right: 48px;
+        padding-left: 48px;
+    }
 }
 
 
@@ -582,12 +704,10 @@ body.indigo-dark-theme {
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
         }
 
-        &:hover,
-        &.is-open {
-            .lw-nav-dropdown__toggle {
-                background: rgba(209, 250, 229, 0.15);
-                color: #6ee7b7;
-            }
+        .lw-nav-dropdown__toggle:hover,
+        &.is-open .lw-nav-dropdown__toggle {
+            background: rgba(209, 250, 229, 0.15);
+            color: #6ee7b7;
         }
 
         .lw-nav-dropdown__item {
@@ -595,8 +715,8 @@ body.indigo-dark-theme {
 
             &:hover,
             &:focus {
-                background: #323232;
-                color: $text-color-d;
+                background: none;
+                color: #6ee7b7;
             }
         }
     }
@@ -605,8 +725,8 @@ body.indigo-dark-theme {
     header.global-header .nav-links .main .lw-nav-dropdown.nav-tab a.lw-nav-dropdown__item {
         &:hover,
         &:focus {
-            background: #323232;
-            color: $text-color-d;
+            background: none;
+            color: #6ee7b7;
         }
     }
 
@@ -635,66 +755,85 @@ body.indigo-dark-theme {
                     }
                 }
 
-                .lw-search-item .lw-search-wrapper .lw-search-input {
+                .lw-search-item .lw-search-wrapper {
                     background: #2d2d2d;
-                    border-color: #444;
-                    color: $text-color-d;
 
-                    &::placeholder {
-                        color: #888;
+                    &:focus-within {
+                        background: #2d2d2d;
+                        box-shadow: 0 0 0 3px rgba(110, 231, 183, 0.35);
+                    }
+
+                    .lw-search-input {
+                        background: transparent;
+                        color: $text-color-d;
+
+                        &::placeholder {
+                            color: #888;
+                        }
                     }
                 }
             }
+        }
 
-            .secondary {
-                .lw-notification-btn {
+        // Bell, avatar and account menu (.secondary is a sibling of .nav-links)
+        .secondary {
+            .lw-notification-btn {
+                background: transparent;
+
+                // Bell SVG strokes are hard-coded Slate-800; follow the dark text colour
+                svg path {
+                    stroke: $text-color-d;
+                }
+
+                &:hover,
+                &:focus,
+                &:active {
                     background: transparent;
+                    color: inherit;
+                }
+            }
 
-                    &:hover,
-                    &:focus,
-                    &:active {
-                        background: transparent;
-                        color: inherit;
-                    }
+            .lw-notification-badge {
+                border-color: $body-bg-d;
+                background: $primary-d !important;
+                color: $btn-color-d;
+            }
+
+            .lw-avatar-btn {
+                background: transparent;
+                color: $text-color-d;
+
+                &:hover,
+                &:focus-visible {
+                    background: rgba(255, 255, 255, 0.1);
                 }
 
-                .lw-notification-badge {
-                    border-color: $body-bg-d;
-                    background: $primary-d !important;
-                    color: $btn-color-d;
+                svg {
+                    color: $text-color-d;
                 }
+            }
 
-                .lw-avatar-btn {
-                    background: $primary-d;
-                    color: $btn-color-d;
+            .toggle-user-dropdown {
+                color: $text-color-d;
 
-                    svg {
-                        color: $btn-color-d;
-                    }
+                &:after {
+                    border-color: $btn-color-d;
                 }
+            }
 
-                .toggle-user-dropdown {
-                    background: $primary-d;
-                    color: $btn-color-d;
+            .dropdown-user-menu {
+                background: #454545;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 
-                    &:after {
-                        border-color: $btn-color-d;
-                    }
-                }
+                .dropdown-item {
+                    a {
+                        color: $text-color-d;
+                        background: none;
 
-                .dropdown-user-menu {
-                    background: $light-overlay-d;
-                    box-shadow: 0px 0px 0px 1px rgba(255, 255, 255, 0.8), 0px 4px 6px -2px rgba(255, 255, 255, 0.05), 0px 10px 15px -3px rgba(255, 255, 255, 0.1);
-
-                    .dropdown-item {
-                        a {
-                            color: $text-color-primary;
+                        &:hover,
+                        &:focus {
                             background: none;
-
-                            &:hover {
-                                background: $body-bg-d;
-                                color: $text-color-d;
-                            }
+                            color: #6ee7b7;
                         }
                     }
                 }

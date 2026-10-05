@@ -47,6 +47,11 @@ from openedx.core.djangoapps.site_configuration import helpers as configuration_
   <script src="${static.url('js/responsive-nav.js')}"></script>
 </%block>
 
+## Header font (Google Sans Flex). Same id as notifications.js / the MFE header so it loads once.
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link id="lw-google-sans-flex-fonts" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wght@8..144,400;8..144,500;8..144,700&display=swap" />
+
 <header class="global-header ${'slim' if course else ''}">
     <div class="header-container">
     % if settings.FEATURES.get('ENABLE_COOKIE_POLICY_BANNER', use_cookie_banner):

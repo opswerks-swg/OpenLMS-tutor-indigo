@@ -56,6 +56,8 @@
 
   ensureGoogleSansFlexFonts();
   clearStaleScrollLock();
+  // Bell is always shown; it only opens the drawer once the API enables the tray.
+  root.hidden = false;
 
   var state = {
     appName: DEFAULT_NOTIFICATION_APP,
@@ -736,6 +738,9 @@
   }
 
   function toggleDrawer() {
+    if (!state.showNotificationsTray) {
+      return;
+    }
     if (state.isDrawerOpen || !drawer.hidden) {
       closeDrawer();
     } else {
@@ -755,10 +760,7 @@
       state.appName = resolveDefaultAppName(appsId, params.get('app'));
 
       if (state.showNotificationsTray) {
-        root.hidden = false;
         updateBadges(state.tabsCount.count);
-      } else {
-        root.hidden = true;
       }
 
       if (params.get('showNotifications') === 'true' && state.showNotificationsTray) {
@@ -786,6 +788,6 @@
   });
 
   fetchCounts().catch(function () {
-    root.hidden = true;
+    // Notifications API unavailable: keep the bell visible but inert.
   });
 })();
