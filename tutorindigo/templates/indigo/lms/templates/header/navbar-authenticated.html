@@ -18,6 +18,11 @@ ICON_PATHS = {
         '<path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7"/>'
         '<path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6"/>'
     ),
+    'Compass': (
+        '<path stroke="none" d="M0 0h24v24H0z" fill="none"/>'
+        '<path d="M8 16l2 -6l6 -2l-2 6l-6 2"/>'
+        '<path d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0"/>'
+    ),
     'LibraryBooks': (
         '<path d="M3 19a9 9 0 0 1 9 0a9 9 0 0 1 9 0"/>'
         '<path d="M3 6a9 9 0 0 1 9 0a9 9 0 0 1 9 0"/>'
@@ -49,6 +54,22 @@ SVG_OPEN = (
     ' stroke-linejoin="round" class="lw-nav-icon" aria-hidden="true">'
 )
 SVG_CLOSE = '</svg>'
+
+CHEVRON_SVG = (
+    '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"'
+    ' fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"'
+    ' stroke-linejoin="round" class="lw-nav-chevron" aria-hidden="true">'
+    '<path d="M6 9l6 6l6 -6"/>'
+    '</svg>'
+)
+
+HELP_SVG = (
+    '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24"'
+    ' fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"'
+    ' stroke-linejoin="round" class="lw-help-icon" aria-hidden="true">'
+    + ICON_PATHS['HelpHexagon'] +
+    '</svg>'
+)
 %>
 
 <%
@@ -57,6 +78,7 @@ SVG_CLOSE = '</svg>'
       {"title": "My Courses", "url": reverse('dashboard'), "icon": "Home"},
       {"title": "Discover",   "url": "/courses",           "icon": "Search"},
   ])
+  help_links = getattr(settings, 'HEADER_HELP_LINKS', [])
   search_url = getattr(settings, 'SEARCH_CATALOG_URL', '/search')
 %>
 
@@ -64,10 +86,34 @@ SVG_CLOSE = '</svg>'
   <div class="main navigation-link">
     % for link in nav_links:
     <%
-      is_active = (link['url'] == request.path or
-                   request.path.startswith(link['url'].rstrip('/') + '/'))
       icon_name = link.get('icon', 'Home')
       icon_svg  = HTML(SVG_OPEN + ICON_PATHS.get(icon_name, ICON_PATHS['Home']) + SVG_CLOSE)
+    %>
+    % if link.get('children'):
+    ## Dropdown (e.g. Browse) — mirrors the MFE header type: 'menu' item
+    <div class="hidden-mobile nav-item nav-tab lw-nav-dropdown">
+      <button type="button" class="tab-nav-link lw-nav-item lw-nav-dropdown__toggle"
+              aria-expanded="false" aria-controls="lw-nav-dropdown-${loop.index}">
+        ${icon_svg}
+        <span>${_(link['title'])}</span>
+        ${HTML(CHEVRON_SVG)}
+      </button>
+      <div class="lw-nav-dropdown__menu" id="lw-nav-dropdown-${loop.index}">
+        % for child in link['children']:
+        <a class="lw-nav-dropdown__item" href="${child['url']}">${_(child['title'])}</a>
+        % endfor
+      </div>
+    </div>
+    ## Flat copies for the LMS mobile menu (header.js clones .mobile-nav-item)
+    % for child in link['children']:
+    <div class="mobile-nav-item lw-mobile-only nav-item">
+      <a href="${child['url']}">${_(child['title'])}</a>
+    </div>
+    % endfor
+    % else:
+    <%
+      is_active = (link['url'] == request.path or
+                   request.path.startswith(link['url'].rstrip('/') + '/'))
     %>
     <div class="mobile-nav-item hidden-mobile nav-item nav-tab">
       <a class="${'active ' if is_active else ''}tab-nav-link lw-nav-item"
@@ -77,6 +123,7 @@ SVG_CLOSE = '</svg>'
         <span>${_(link['title'])}</span>
       </a>
     </div>
+    % endif
     % endfor
 
     ## Search — last mainMenu item, matches MFE lw-search-item
@@ -100,6 +147,26 @@ SVG_CLOSE = '</svg>'
 </div>
 
 <div class="secondary d-flex align-items-center">
+  % if help_links:
+  ## Help icon dropdown — mirrors the MFE header HEADER_HELP_LINKS menu
+  <div class="lw-nav-dropdown lw-help-menu hidden-mobile">
+    <button type="button" class="lw-nav-dropdown__toggle lw-help-menu__toggle"
+            aria-expanded="false" aria-controls="lw-help-menu" aria-label="${_('Help')}">
+      ${HTML(HELP_SVG)}
+      ${HTML(CHEVRON_SVG)}
+    </button>
+    <div class="lw-nav-dropdown__menu" id="lw-help-menu">
+      % for child in help_links:
+      <a class="lw-nav-dropdown__item" href="${child['url']}">${_(child['title'])}</a>
+      % endfor
+    </div>
+  </div>
+  % for child in help_links:
+  <div class="mobile-nav-item lw-mobile-only nav-item">
+    <a href="${child['url']}">${_(child['title'])}</a>
+  </div>
+  % endfor
+  % endif
   ## Notifications bell + drawer — mirrors MFE HeaderNotificationsSlot
   <div class="lw-notification-btn-wrapper" id="lw-notifications-root" hidden>
     <button type="button"
@@ -163,3 +230,43 @@ SVG_CLOSE = '</svg>'
   </div>
   <div class="lw-notifications-drawer__list" id="lw-notifications-list"></div>
 </div>
+
+## Nav dropdowns: click/keyboard toggle, Escape and click-away close (hover is CSS)
+<script type="text/javascript">
+  (function () {
+    var dropdowns = document.querySelectorAll('.global-header .lw-nav-dropdown');
+    function setOpen(dropdown, open) {
+      if (open) {
+        Array.prototype.forEach.call(dropdowns, function (other) {
+          if (other !== dropdown) { setOpen(other, false); }
+        });
+      }
+      dropdown.classList.toggle('is-open', open);
+      dropdown.querySelector('.lw-nav-dropdown__toggle').setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+    Array.prototype.forEach.call(dropdowns, function (dropdown) {
+      var toggle = dropdown.querySelector('.lw-nav-dropdown__toggle');
+      toggle.addEventListener('click', function () {
+        setOpen(dropdown, !dropdown.classList.contains('is-open'));
+      });
+      dropdown.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape' && dropdown.classList.contains('is-open')) {
+          setOpen(dropdown, false);
+          toggle.focus();
+        }
+      });
+      dropdown.addEventListener('focusout', function (event) {
+        if (!dropdown.contains(event.relatedTarget)) {
+          setOpen(dropdown, false);
+        }
+      });
+    });
+    document.addEventListener('click', function (event) {
+      Array.prototype.forEach.call(dropdowns, function (dropdown) {
+        if (!dropdown.contains(event.target)) {
+          setOpen(dropdown, false);
+        }
+      });
+    });
+  }());
+</script>
