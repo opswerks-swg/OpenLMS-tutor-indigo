@@ -195,6 +195,11 @@ header.global-header {
             position: relative;
             display: inline-flex;
             align-items: center;
+
+            // notifications.js sets [hidden] when the tray is off or unread-count fails.
+            &[hidden] {
+                display: none !important;
+            }
         }
 
         .lw-notification-btn {
