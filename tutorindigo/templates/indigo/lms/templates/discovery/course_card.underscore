@@ -1,35 +1,64 @@
-<article class="course" role="region" aria-label="<%- content.display_name %>">
-        <header class="course-image">
-            <div class="cover-image">
-                <!-- NEW IN INDIGO: Add fallback image in case of no course-image using onerror -->
-                <img src="<%- image_url %>" onerror="this.src='/theming/asset/images/no_course_image.png';" alt="" />
-            </div>
-        </header>
-        <section class="course-info">
-            <h2 class="course-name">
-                <span class="course-code"><%- content.number %></span>
-                <span class="course-title"><%- content.display_name %></span>
-                <span class="course-organization"><%- org %></span>
-            </h2>
-            <a href="/courses/<%- course %>/about" class="learn-more" aria-label="">
-              <%- gettext("Learn More") %>
-              <span class="sr-only">about <%- content.display_name %></span>
-            </a>
-            <div class="course-date" aria-hidden="true">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="21" viewBox="0 0 20 21" fill="none" aria-hidden="true">
-                <path fill-rule="evenodd" clip-rule="evenodd" d="M15 3.83332H15.8333C16.75 3.83332 17.5 4.58332 17.5 5.49999V17.1667C17.5 18.0833 16.75 18.8333 15.8333 18.8333H4.16667C3.24167 18.8333 2.5 18.0833 2.5 17.1667L2.50833 5.49999C2.50833 4.58332 3.24167 3.83332 4.16667 3.83332H5V2.16666H6.66667V3.83332H13.3333V2.16666H15V3.83332ZM4.16667 8.83332V17.1667H15.8333V8.83332H4.16667ZM15.8333 7.16666H4.16667V5.49999H15.8333V7.16666ZM14.1667 11.3333H10V15.5H14.1667V11.3333Z" fill="#9CA3AF"/>
-          </svg>
-                <%- interpolate(
-                      gettext("Starts: %(start_date)s"),
-                      { start_date: start }, true
-                    ) %>
-            </div>
-        </section>
-        <div class="sr">
-            <ul>
-                <li><%- org %></li>
-                <li><%- content.number %></li>
-                <li><%- gettext("Starts") %><time itemprop="startDate" datetime="<%- start %>"><%- start %></time></li>
-            </ul>
+<%
+  // Course card — client-side twin of templates/course.html (keep in sync).
+  // Learner-specific parts are filled by js/lw-course-cards.js.
+  var courseEnd = typeof end !== 'undefined' && end ? end : '';
+  var description = content.short_description || '';
+%>
+<article class="lw-course-card" aria-label="<%- content.display_name %>"
+         data-course-id="<%- course %>" data-course-end="<%- courseEnd %>">
+  <div class="lw-course-card__image">
+    <img src="<%- image_url %>" alt="" loading="lazy"
+         onerror="this.onerror=null;this.src='/theming/asset/images/no_course_image.png';" />
+    <span class="lw-course-card__badge" data-lw="badge" hidden></span>
+  </div>
+  <div class="lw-course-card__body">
+    <div class="lw-course-card__meta">
+      <div class="lw-course-card__heading">
+        <div class="lw-course-card__title-row">
+          <h3 class="lw-course-card__title"><a href="/courses/<%- course %>/about"><%- content.display_name %></a></h3>
+          <span class="lw-course-card__rating">
+            <span class="lw-icon lw-icon--star" aria-hidden="true"></span>4.5
+          </span>
         </div>
+        <span class="lw-course-card__provider" data-lw="provider"><%- interpolate(gettext('By %(provider_name)s'), { provider_name: org }, true) %></span>
+      </div>
+      <% if (description) { %>
+      <p class="lw-course-card__description"><%- description %></p>
+      <% } %>
+      <div class="lw-course-card__chips">
+        <span class="lw-course-card__chip" data-lw="content-type"><%- gettext('Video') %></span>
+        <span class="lw-course-card__chip-plain">
+          <span class="lw-icon lw-icon--clock" aria-hidden="true"></span>
+          <span data-lw="duration"><%- interpolate(gettext('%(hours)s hours'), { hours: 4 }, true) %></span>
+        </span>
+        <span class="lw-course-card__chip-plain" data-lw="due" hidden>
+          <span class="lw-icon lw-icon--hourglass" aria-hidden="true"></span>
+          <span data-lw="due-text"></span>
+        </span>
+      </div>
+      <p class="lw-course-card__status-line" data-lw="overdue" hidden></p>
+    </div>
+    <div class="lw-course-card__bottom">
+      <div class="lw-course-card__progress" data-lw="progress" hidden>
+        <div class="lw-course-card__progress-label">
+          <span><%- gettext('In Progress') %></span>
+          <span class="lw-course-card__progress-value" data-lw="progress-value"></span>
+        </div>
+        <div class="lw-course-card__progress-track" role="progressbar" aria-label="<%- gettext('Course progress') %>"
+             aria-valuemin="0" aria-valuemax="100" data-lw="progress-track">
+          <div class="lw-course-card__progress-bar" data-lw="progress-bar"></div>
+        </div>
+      </div>
+      <div class="lw-course-card__actions">
+        <a class="lw-course-card__cta" href="/courses/<%- course %>/about" data-lw="cta">
+          <span class="lw-icon lw-icon--play" aria-hidden="true" data-lw="cta-icon" hidden></span>
+          <span data-lw="cta-label"><%- gettext('View Course') %></span>
+        </a>
+        <button type="button" class="lw-course-card__bookmark"
+                aria-label="<%- interpolate(gettext('Bookmark %(course_name)s'), { course_name: content.display_name }, true) %>">
+          <span class="lw-icon lw-icon--bookmark" aria-hidden="true"></span>
+        </button>
+      </div>
+    </div>
+  </div>
 </article>

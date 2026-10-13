@@ -5,53 +5,71 @@ from django.utils.translation import gettext as _
 from django.urls import reverse
 %>
 <%page args="course" expression_filter="h"/>
-<article class="course" id="${course.id}" role="region" aria-label="${course.display_name_with_default}">
-    <header class="course-image">
-      <div class="cover-image">
-        <!-- NEW IN INDIGO: Add fallback image in case of no course-image using onerror -->
-        <img src="${course.course_image_url}" onerror="this.src='/theming/asset/images/no_course_image.png';" alt="${course.display_name_with_default} ${course.display_number_with_default}" />
+## Course card — same card as the learner dashboard CourseCard (static/sass/courseware/_course-card.scss).
+## Keep in sync with discovery/course_card.underscore, which renders the same card client-side.
+## Rating, "Video" and "4 hours" are the learner dashboard placeholders until the APIs expose them.
+## Server-rendered (e.g. homepage courses list); /courses renders its cards in js/lw-courses-tabs.js,
+## and only those are filled in by js/lw-course-cards.js.
+<%
+  course_name = course.display_name_with_default
+  about_url = reverse('about_course', args=[str(course.id)])
+%>
+<article class="lw-course-card" aria-label="${course_name}"
+         data-course-id="${course.id}"
+         data-course-end="${course.end.isoformat() if course.end else ''}">
+  <div class="lw-course-card__image">
+    <img src="${course.course_image_url}" alt="" loading="lazy"
+         onerror="this.onerror=null;this.src='/theming/asset/images/no_course_image.png';" />
+    <span class="lw-course-card__badge" data-lw="badge" hidden></span>
+  </div>
+  <div class="lw-course-card__body">
+    <div class="lw-course-card__meta">
+      <div class="lw-course-card__heading">
+        <div class="lw-course-card__title-row">
+          <h3 class="lw-course-card__title"><a href="${about_url}">${course_name}</a></h3>
+          <span class="lw-course-card__rating">
+            <span class="lw-icon lw-icon--star" aria-hidden="true"></span>4.5
+          </span>
+        </div>
+        <span class="lw-course-card__provider" data-lw="provider">${_("By {provider_name}").format(provider_name=course.display_org_with_default)}</span>
       </div>
-    </header>
-    <div class="course-info" aria-hidden="true">
-      <h2 class="course-name">
-        <span class="course-code">${course.display_number_with_default}</span>
-        <span class="course-title">${course.display_name_with_default}</span>
-        <span class="course-organization">${course.display_org_with_default}</span>
-      </h2>
-      <!-- NEW IN INDIGO Learn more button is displayed under the course image instead of the hover functionality. -->
-      <a  href="${reverse('about_course', args=[str(course.id)])}" class="learn-more" aria-hidden="true">${_("Learn More")}</a>
-      <%
-      if course.start is not None:
-          course_date_string = course.start.strftime('%Y-%m-%dT%H:%M:%S%z')
-      else:
-          course_date_string = ''
-      %>
-      % if course.advertised_start is not None:
-          <div class="course-date" aria-hidden="true">
-            <!-- NEW IN INDIGO calendar icon is displayed next to the course start date -->
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="21" viewBox="0 0 20 21" fill="none">
-            <path fill-rule="evenodd" clip-rule="evenodd" d="M15 3.83332H15.8333C16.75 3.83332 17.5 4.58332 17.5 5.49999V17.1667C17.5 18.0833 16.75 18.8333 15.8333 18.8333H4.16667C3.24167 18.8333 2.5 18.0833 2.5 17.1667L2.50833 5.49999C2.50833 4.58332 3.24167 3.83332 4.16667 3.83332H5V2.16666H6.66667V3.83332H13.3333V2.16666H15V3.83332ZM4.16667 8.83332V17.1667H15.8333V8.83332H4.16667ZM15.8333 7.16666H4.16667V5.49999H15.8333V7.16666ZM14.1667 11.3333H10V15.5H14.1667V11.3333Z" fill="#9CA3AF"/>
-            </svg>  ${_("Starts")}: ${course.advertised_start}</div>
-      % else:
-          <div class="course-date">
-            <!-- NEW IN INDIGO calendar icon is displayed next to the course start date -->
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="21" viewBox="0 0 20 21" fill="none">
-            <path fill-rule="evenodd" clip-rule="evenodd" d="M15 3.83332H15.8333C16.75 3.83332 17.5 4.58332 17.5 5.49999V17.1667C17.5 18.0833 16.75 18.8333 15.8333 18.8333H4.16667C3.24167 18.8333 2.5 18.0833 2.5 17.1667L2.50833 5.49999C2.50833 4.58332 3.24167 3.83332 4.16667 3.83332H5V2.16666H6.66667V3.83332H13.3333V2.16666H15V3.83332ZM4.16667 8.83332V17.1667H15.8333V8.83332H4.16667ZM15.8333 7.16666H4.16667V5.49999H15.8333V7.16666ZM14.1667 11.3333H10V15.5H14.1667V11.3333Z" fill="#9CA3AF"/>
-          </svg><span class="localized_datetime" aria-hidden="true" data-format="shortDate" data-datetime="${course_date_string}" data-language="${LANGUAGE_CODE}" data-string="${_("Starts: {date}")}"></span></div>
+      % if course.short_description:
+      <p class="lw-course-card__description">${course.short_description}</p>
       % endif
+      <div class="lw-course-card__chips">
+        <span class="lw-course-card__chip" data-lw="content-type">${_("Video")}</span>
+        <span class="lw-course-card__chip-plain">
+          <span class="lw-icon lw-icon--clock" aria-hidden="true"></span>
+          <span data-lw="duration">${_("{hours} hours").format(hours=4)}</span>
+        </span>
+        <span class="lw-course-card__chip-plain" data-lw="due" hidden>
+          <span class="lw-icon lw-icon--hourglass" aria-hidden="true"></span>
+          <span data-lw="due-text"></span>
+        </span>
+      </div>
+      <p class="lw-course-card__status-line" data-lw="overdue" hidden></p>
     </div>
-    <div class="sr">
-      <ul>
-        <li>${course.display_org_with_default}</li>
-        <li>${course.display_number_with_default}</li>
-        % if course.advertised_start is not None:
-            <li>${_("Starts")}: <time itemprop="startDate">${course.advertised_start}</time></li>
-        % else:
-            <li>${_("Starts")}: <time class="localized_datetime" itemprop="startDate" data-format="shortDate" data-datetime="${course_date_string}" data-language="${LANGUAGE_CODE}"></time></li>
-        % endif
-      </ul>
+    <div class="lw-course-card__bottom">
+      <div class="lw-course-card__progress" data-lw="progress" hidden>
+        <div class="lw-course-card__progress-label">
+          <span>${_("In Progress")}</span>
+          <span class="lw-course-card__progress-value" data-lw="progress-value"></span>
+        </div>
+        <div class="lw-course-card__progress-track" role="progressbar" aria-label="${_('Course progress')}"
+             aria-valuemin="0" aria-valuemax="100" data-lw="progress-track">
+          <div class="lw-course-card__progress-bar" data-lw="progress-bar"></div>
+        </div>
+      </div>
+      <div class="lw-course-card__actions">
+        <a class="lw-course-card__cta" href="${about_url}" data-lw="cta">
+          <span class="lw-icon lw-icon--play" aria-hidden="true" data-lw="cta-icon" hidden></span>
+          <span data-lw="cta-label">${_("View Course")}</span>
+        </a>
+        <button type="button" class="lw-course-card__bookmark"
+                aria-label="${_('Bookmark {course_name}').format(course_name=course_name)}">
+          <span class="lw-icon lw-icon--bookmark" aria-hidden="true"></span>
+        </button>
+      </div>
     </div>
+  </div>
 </article>
-<%static:require_module_async module_name="js/dateutil_factory" class_name="DateUtilFactory">
-    DateUtilFactory.transform(iterationKey=".localized_datetime");
-</%static:require_module_async>
