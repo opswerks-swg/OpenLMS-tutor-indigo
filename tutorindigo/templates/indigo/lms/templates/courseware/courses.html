@@ -97,7 +97,8 @@
         <div class="course-holder courses lw-courses-library no-course-discovery" role="tabpanel"
              id="lw-courses-panel" aria-labelledby="lw-courses-section-title"
              data-discover-url="${search_catalog_url}"
-             data-share-settings="${json.dumps(share_config)}">
+             data-share-settings="${json.dumps(share_config)}"
+             data-username="${user.username if user.is_authenticated else ''}">
           <div class="lw-courses-empty" data-lw-library="empty">
             <h3 class="lw-courses-empty__title" data-lw-empty="title">${_("No ongoing courses.")}</h3>
             <p class="lw-courses-empty__body" data-lw-empty="body">${_("Browse available courses to find what interests you!")}</p>

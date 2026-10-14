@@ -2,9 +2,13 @@
  * /courses: fills the learner-specific parts of .lw-course-card the same way the learner
  * dashboard CourseCard does (src/utils/dueDate.js resolveDueInfo, CourseCardMeta/hooks.js):
  *
- *  - GET /api/openlms/course-completion/      enrolled courses + completion %
+ *  - GET /api/openlms/course-completion/      enrolled courses, completion %, completedAt
  *  - GET /api/course_assignments/v1/card-info/ provider, content type, duration, rating,
- *                                              assignment due
+ *                                              assignment due and status
+ *  - GET /api/openlms/certificates/<username>/ certificate dates (when a course was completed)
+ *
+ * Status badge on the image (CourseCardImage useStatusBadge): Completed (with its date) wins,
+ * then "Overdue for N days", then "Due in N days", each with the due date.
  *
  * Enrolled + started  -> "In Progress" bar + Resume
  * Enrolled, 0%        -> Enroll and Start (learner dashboard BeginCourseButton label)
@@ -24,6 +28,7 @@
   var DUE_SOON_WINDOW_DAYS = 7;
   var MS_PER_DAY = 1000 * 60 * 60 * 24;
   var COMPLETION_URL = '/api/openlms/course-completion/';
+  var CERTIFICATES_URL = '/api/openlms/certificates/';
   var CARD_INFO_URL = '/api/course_assignments/v1/card-info/';
   var MY_LIST_URL = '/api/course_assignments/v1/my-list/';
   var EVENT_URL = '/event';
@@ -60,6 +65,41 @@
       });
     }
     return completionPromise;
+  }
+
+  // One request per page: when each course's certificate was generated, keyed by course id.
+  var certificatesPromise = null;
+  function getCertificateDateById() {
+    if (!certificatesPromise) {
+      var holder = document.querySelector('.lw-courses-library');
+      var username = holder && holder.getAttribute('data-username');
+      certificatesPromise = !username
+        ? Promise.resolve({})
+        : getJson(CERTIFICATES_URL + encodeURIComponent(username) + '/').then(function (data) {
+          return dateEntries(data && data.certificates, 'completionDate');
+        });
+    }
+    return certificatesPromise;
+  }
+
+  // { courseId: Date } from rows with a full timestamp in dateKey; bad dates are skipped.
+  function dateEntries(rows, dateKey) {
+    var byId = {};
+    (Array.isArray(rows) ? rows : []).forEach(function (row) {
+      var date = row && row.courseId && row[dateKey] ? new Date(row[dateKey]) : null;
+      if (date && !isNaN(date.getTime())) { byId[row.courseId] = date; }
+    });
+    return byId;
+  }
+
+  /**
+   * As dueDate.js buildCompletedDateById: the certificate's date, else completion
+   * completedAt (the earlier of reaching 100% and first passing).
+   */
+  function completedDate(courseId, completionById, certificateDateById) {
+    if (certificateDateById[courseId]) { return certificateDateById[courseId]; }
+    var completion = completionById[courseId];
+    return dateEntries(completion ? [completion] : [], 'completedAt')[courseId] || null;
   }
 
   // Card info is cached per course id as a promise, so a card rendered while its request
@@ -103,50 +143,74 @@
     return date.toLocaleDateString(lang, { month: 'short', day: 'numeric', year: 'numeric' });
   }
 
-  function toIsoDay(date) {
-    var pad = function (n) { return (n < 10 ? '0' : '') + n; };
-    return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate());
-  }
-
   /**
-   * Port of resolveDueInfo: assignment due date first, then the course end date
-   * (enrolled learners only), otherwise none. Finished courses are never overdue.
+   * Port of dueDate.js resolveDueInfo. Due date: the assignment's, then the course end date
+   * (enrolled learners only), else none. A course is completed once finished (100%, a
+   * certificate, or a recorded completedAt, which includes first passing) or when its
+   * assignment is marked completed; completed courses are never overdue or due soon.
    */
-  function resolveDueInfo(courseEnd, cardInfo, completion, now) {
+  function resolveDueInfo(courseEnd, cardInfo, completion, completedOn, now) {
     var enrolled = completion !== undefined;
-    var finished = enrolled && completion.completion >= 100;
-    var dueDate;
-    var days;
-    var isOverdue;
+    var finished = enrolled && (completion.completion >= 100 || Boolean(completedOn));
+    var isCompleted = finished || Boolean(cardInfo && cardInfo.status === 'completed');
+    var info = {
+      dueDate: null,
+      daysUntilDue: 0,
+      daysOverdue: 0,
+      isOverdue: false,
+      isDueSoon: false,
+      isCompleted: isCompleted,
+      completedDate: isCompleted ? completedOn : null,
+    };
 
     if (cardInfo && cardInfo.due_date) {
-      dueDate = parseDateOnly(cardInfo.due_date);
-      days = daysUntil(dueDate, now);
+      info.dueDate = parseDateOnly(cardInfo.due_date);
+      info.daysUntilDue = daysUntil(info.dueDate, now);
       // The API owns overdue for assignments (it already excludes status=completed).
-      isOverdue = Boolean(cardInfo.is_overdue);
-      var isCompleted = cardInfo.status === 'completed' || finished;
+      info.isOverdue = Boolean(cardInfo.is_overdue);
+      // Server and browser can disagree on "today" near midnight; never "0 days overdue".
+      info.daysOverdue = info.isOverdue ? Math.max(1, -info.daysUntilDue) : 0;
+      info.isDueSoon = !info.isOverdue && !isCompleted
+        && info.daysUntilDue >= 0 && info.daysUntilDue <= DUE_SOON_WINDOW_DAYS;
+    } else if (enrolled && courseEnd) {
+      info.dueDate = parseDateOnly(courseEnd);
+      info.daysUntilDue = daysUntil(info.dueDate, now);
+      info.isOverdue = info.daysUntilDue < 0 && !finished;
+      info.daysOverdue = info.isOverdue ? -info.daysUntilDue : 0;
+      info.isDueSoon = !finished && info.daysUntilDue >= 0 && info.daysUntilDue <= DUE_SOON_WINDOW_DAYS;
+    }
+    return info;
+  }
+
+  // As CourseCardImage useStatusBadge: completed wins over overdue / due soon.
+  function statusBadge(due) {
+    if (due.isCompleted) {
       return {
-        dueDate: dueDate,
-        isOverdue: isOverdue,
-        // Server and browser can disagree on "today" near midnight; never "0 days overdue".
-        daysOverdue: isOverdue ? Math.max(1, -days) : 0,
-        isDueSoon: !isOverdue && !isCompleted && days >= 0 && days <= DUE_SOON_WINDOW_DAYS,
+        variant: 'completed',
+        label: due.completedDate
+          ? interpolate(gettext('Completed – %(completed_date)s'), { completed_date: formatShortDate(due.completedDate) })
+          : gettext('Completed'),
       };
     }
-
-    if (enrolled && courseEnd) {
-      dueDate = parseDateOnly(courseEnd);
-      days = daysUntil(dueDate, now);
-      isOverdue = days < 0 && !finished;
+    if (due.isOverdue) {
       return {
-        dueDate: dueDate,
-        isOverdue: isOverdue,
-        daysOverdue: isOverdue ? -days : 0,
-        isDueSoon: !finished && days >= 0 && days <= DUE_SOON_WINDOW_DAYS,
+        variant: 'overdue',
+        label: interpolate(
+          ngettext('Overdue for %(days)s day – %(due_date)s', 'Overdue for %(days)s days – %(due_date)s', due.daysOverdue),
+          { days: due.daysOverdue, due_date: formatShortDate(due.dueDate) }
+        ),
       };
     }
-
-    return { dueDate: null, isOverdue: false, daysOverdue: 0, isDueSoon: false };
+    if (due.isDueSoon) {
+      var template = due.daysUntilDue === 0
+        ? gettext('Due today – %(due_date)s')
+        : ngettext('Due in %(days)s day – %(due_date)s', 'Due in %(days)s days – %(due_date)s', due.daysUntilDue);
+      return {
+        variant: 'due-soon',
+        label: interpolate(template, { days: due.daysUntilDue, due_date: formatShortDate(due.dueDate) }),
+      };
+    }
+    return null;
   }
 
   // Whole minutes from card-info, or null. Older card-info responses only carry hours.
@@ -188,24 +252,6 @@
     show(field(card, 'rating'), hasRating);
   }
 
-  /**
-   * Fills element with a translated string whose %(due_date)s placeholder becomes a
-   * <time> element. Built with DOM nodes, not innerHTML, so translations can't inject markup.
-   */
-  function renderWithDueDate(element, template, values, date, dateText) {
-    var placeholder = '%(due_date)s';
-    var text = interpolate(template, Object.assign({}, values, { due_date: placeholder }));
-    var time = document.createElement('time');
-    time.setAttribute('datetime', toIsoDay(date));
-    time.textContent = dateText;
-
-    element.textContent = '';
-    text.split(placeholder).forEach(function (part, index) {
-      if (index > 0) { element.appendChild(time.cloneNode(true)); }
-      element.appendChild(document.createTextNode(part));
-    });
-  }
-
   function field(card, name) {
     return card.querySelector('[data-lw="' + name + '"]');
   }
@@ -214,7 +260,7 @@
     if (element) { element.hidden = !visible; }
   }
 
-  function renderCard(card, completionById, cardInfoById, now) {
+  function renderCard(card, completionById, cardInfoById, certificateDateById, now) {
     var courseId = card.getAttribute('data-course-id');
     var completion = completionById[courseId];
     var cardInfo = cardInfoById[courseId];
@@ -238,34 +284,23 @@
     }
     renderRating(card, cardInfo);
 
-    var due = resolveDueInfo(card.getAttribute('data-course-end'), cardInfo, completion, now);
-    var dueText = due.dueDate ? formatShortDate(due.dueDate) : null;
-
+    var due = resolveDueInfo(
+      card.getAttribute('data-course-end'),
+      cardInfo,
+      completion,
+      completedDate(courseId, completionById, certificateDateById),
+      now
+    );
+    var status = statusBadge(due);
     var badge = field(card, 'badge');
     badge.className = 'lw-course-card__badge';
-    if (due.isOverdue || due.isDueSoon) {
-      badge.textContent = due.isOverdue ? gettext('Overdue') : gettext('Due Soon');
-      badge.classList.add(due.isOverdue ? 'lw-course-card__badge--overdue' : 'lw-course-card__badge--due-soon');
+    if (status) {
+      badge.textContent = status.label;
+      // Long labels are truncated; the full text stays available on hover.
+      badge.title = status.label;
+      badge.classList.add('lw-course-card__badge--' + status.variant);
     }
-    show(badge, due.isOverdue || due.isDueSoon);
-
-    // Due chip until overdue, then the orange status line replaces it.
-    if (dueText) {
-      renderWithDueDate(field(card, 'due-text'), gettext('Due: %(due_date)s'), {}, due.dueDate, dueText);
-      renderWithDueDate(
-        field(card, 'overdue'),
-        ngettext(
-          'Due %(due_date)s · %(days)s day overdue',
-          'Due %(due_date)s · %(days)s days overdue',
-          due.daysOverdue
-        ),
-        { days: due.daysOverdue },
-        due.dueDate,
-        dueText
-      );
-    }
-    show(field(card, 'due'), Boolean(dueText) && !due.isOverdue);
-    show(field(card, 'overdue'), Boolean(dueText) && due.isOverdue);
+    show(badge, Boolean(status));
 
     // Progress + CTA, as CourseCardProgress / CourseCardActions
     var hasStarted = Boolean(completion) && completion.completion > 0;
@@ -310,9 +345,9 @@
     cards.forEach(function (card) { card.setAttribute('data-lw-ready', ''); });
 
     var ids = cards.map(function (card) { return card.getAttribute('data-course-id'); });
-    Promise.all([getCompletionById(), loadCardInfo(ids)]).then(function (results) {
+    Promise.all([getCompletionById(), loadCardInfo(ids), getCertificateDateById()]).then(function (results) {
       var now = Date.now();
-      cards.forEach(function (card) { renderCard(card, results[0], results[1], now); });
+      cards.forEach(function (card) { renderCard(card, results[0], results[1], results[2], now); });
     });
   }
 

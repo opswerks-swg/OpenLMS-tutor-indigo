@@ -1,7 +1,7 @@
 // Course card — same card as the learner dashboard (frontend-app-learner-dashboard
 // src/containers/CourseCard/CourseCard.scss + CourseCardMeta/index.scss, OpenLMS Figma 82:2140).
 // Markup: cardHtml() in js/lw-courses-tabs.js. On /courses, js/lw-course-cards.js fills the
-// learner-specific parts (rating, badge, due date, progress, CTA, actions menu).
+// learner-specific parts (rating, status badge, progress, CTA, actions menu).
 
 $lw-card-slate-50: #F8FAFC;
 $lw-card-slate-100: #F1F5F9;
@@ -11,7 +11,14 @@ $lw-card-slate-800: #1E293B;
 $lw-card-blue-50: #E6F2FF;
 $lw-card-blue-600: #003366;
 $lw-card-orange-500: #F97316;
-$lw-card-amber: #E0942E;
+// Status badge fills and text (learner dashboard CourseCard.scss): 700-step text so the 12px
+// labels clear WCAG AA on the light fills.
+$lw-card-badge-overdue-bg: #FFF7ED;
+$lw-card-badge-overdue-text: #C2410C;
+$lw-card-badge-due-soon-bg: #FFFBEB;
+$lw-card-badge-due-soon-text: #B45309;
+$lw-card-badge-completed-bg: #F0FDF4;
+$lw-card-badge-completed-text: #15803D;
 $lw-card-star: #F5A623;
 $lw-card-font-flex: 'Google Sans Flex', $font-family-title;
 $lw-card-font-code: 'Google Sans Code', monospace;
@@ -20,6 +27,11 @@ $lw-card-max-width: 437px; // Figma library frame: 3 cards in the 1344px column
 $lw-card-control-size: 40px;
 $lw-card-radius: 8px;
 $lw-card-control-radius: 6px;
+// Actions menu: Paragon 23 dropdown values (min width, border, item text and hover).
+$lw-menu-min-width: 18rem;
+$lw-menu-border: rgba(0, 0, 0, 0.15);
+$lw-menu-item-text: #212529;
+$lw-menu-item-hover-bg: #F0EEED;
 
 // Tabler icons (same SVGs as the learner dashboard assets), drawn with currentColor via mask
 // so both card templates share one copy.
@@ -28,7 +40,6 @@ $lw-card-control-radius: 6px;
 }
 
 $lw-icon-clock: lw-svg('<path d="M8 4.667V8l2 2M2 8a6 6 0 1 0 12 0A6 6 0 0 0 2 8"/>', 16);
-$lw-icon-hourglass: lw-svg('<path d="M4.333 4.667h7.334M4 13.333V12a4 4 0 1 1 8 0v1.333a.667.667 0 0 1-.667.667H4.667A.667.667 0 0 1 4 13.333M4 2.667V4a4 4 0 1 0 8 0V2.667A.667.667 0 0 0 11.333 2H4.667A.667.667 0 0 0 4 2.667"/>', 16);
 // Paragon MoreHoriz / Person (filled), as in the learner dashboard card menu and rating dialog.
 $lw-icon-more: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M8 12c0-1.1-.9-2-2-2s-2 .9-2 2 .9 2 2 2 2-.9 2-2Zm2 0c0 1.1.9 2 2 2s2-.9 2-2-.9-2-2-2-2 .9-2 2Zm6 0c0 1.1.9 2 2 2s2-.9 2-2-.9-2-2-2-2 .9-2 2Z"/></svg>');
 $lw-icon-person: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4Zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4Z"/></svg>');
@@ -60,7 +71,6 @@ $lw-icon-star: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/s
     -webkit-mask: center / contain no-repeat;
 
     &--clock { mask-image: $lw-icon-clock; -webkit-mask-image: $lw-icon-clock; }
-    &--hourglass { mask-image: $lw-icon-hourglass; -webkit-mask-image: $lw-icon-hourglass; }
     &--more { width: 24px; height: 24px; mask-image: $lw-icon-more; -webkit-mask-image: $lw-icon-more; }
     &--person { mask-image: $lw-icon-person; -webkit-mask-image: $lw-icon-person; }
     &--play { width: 24px; height: 24px; mask-image: $lw-icon-play; -webkit-mask-image: $lw-icon-play; }
@@ -114,19 +124,26 @@ $lw-icon-star: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/s
     }
 
     // Small Text - code, bold
+    // Status on the image: "Completed – date", "Overdue for N days – date", "Due in N days – date".
     &__badge {
         @extend %lw-code-small;
         position: absolute;
         top: 10px;
         right: 10px;
         z-index: 1;
+        box-sizing: border-box;
+        max-width: calc(100% - 20px);
         padding: 2px 8px;
+        overflow: hidden;
         border-radius: $lw-card-radius;
-        font-weight: 700;
-        color: $lw-card-slate-50;
+        font-weight: 500;
+        text-transform: uppercase;
+        text-overflow: ellipsis;
+        white-space: nowrap;
 
-        &--overdue { background-color: $lw-card-orange-500; }
-        &--due-soon { background-color: $lw-card-amber; }
+        &--overdue { background-color: $lw-card-badge-overdue-bg; color: $lw-card-badge-overdue-text; }
+        &--due-soon { background-color: $lw-card-badge-due-soon-bg; color: $lw-card-badge-due-soon-text; }
+        &--completed { background-color: $lw-card-badge-completed-bg; color: $lw-card-badge-completed-text; }
     }
 
     &__body {
@@ -234,13 +251,6 @@ $lw-icon-star: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/s
         align-items: center;
         gap: 8px;
         white-space: nowrap;
-    }
-
-    // Small Text - code; replaces the due chip once the course is overdue
-    &__status-line {
-        @extend %lw-code-small;
-        margin: 0;
-        color: $lw-card-orange-500;
     }
 
     &__bottom {
@@ -369,21 +379,25 @@ $lw-icon-star: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/s
         right: 0;
         bottom: calc(100% + 4px);
         z-index: 10;
-        min-width: 180px;
-        padding: 4px 0;
+        // Paragon 23 Dropdown.Menu, as the learner dashboard card menu renders it.
+        min-width: $lw-menu-min-width;
+        padding: 0.5rem 0;
         margin: 0;
         list-style: none;
-        border: 1px solid $lw-card-slate-200;
-        border-radius: $lw-card-control-radius;
+        border: 1px solid $lw-menu-border;
+        border-radius: 0.375rem;
         background: #fff;
-        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
+        box-shadow: none;
     }
 
+    // Paragon Dropdown.Item: base font size (1.125rem) and 0.25rem x 1rem padding.
     button.lw-course-card__menu-item {
         @extend %lw-body-text;
         display: block;
         width: 100%;
-        padding: 8px 16px !important;
+        padding: 0.25rem 1rem !important;
+        font-size: 1.125rem;
+        line-height: 1.5556;
         margin: 0;
         border: 0 !important;
         border-radius: 0 !important;
@@ -391,12 +405,17 @@ $lw-icon-star: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/s
         box-shadow: none !important;
         text-shadow: none !important;
         text-align: left;
-        color: $lw-card-slate-800 !important;
+        color: $lw-menu-item-text !important;
         cursor: pointer;
 
+        // Opening the menu focuses its first item; only show the highlight on hover or
+        // keyboard focus, so a mouse-opened menu has no item that looks active.
         &:hover,
+        &:focus-visible {
+            background: $lw-menu-item-hover-bg !important;
+        }
+
         &:focus {
-            background: $lw-card-slate-100 !important;
             outline: none;
         }
     }
@@ -436,7 +455,7 @@ body.indigo-dark-theme .lw-course-card {
     button.lw-course-card__menu-toggle:hover,
     button.lw-course-card__menu-toggle[aria-expanded="true"],
     button.lw-course-card__menu-item:hover,
-    button.lw-course-card__menu-item:focus {
+    button.lw-course-card__menu-item:focus-visible {
         background: $light-overlay-d !important;
     }
 
