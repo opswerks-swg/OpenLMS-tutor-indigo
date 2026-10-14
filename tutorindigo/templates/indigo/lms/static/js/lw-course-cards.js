@@ -302,8 +302,19 @@
     }
     show(badge, Boolean(status));
 
-    // Progress + CTA, as CourseCardProgress / CourseCardActions
-    var hasStarted = Boolean(completion) && completion.completion > 0;
+    // Under "Completed - date": the learner's course grade, e.g. "Scored 87%" (course-completion
+    // API score). Hidden without a grade, or at 0% (ungraded courses).
+    var score = due.isCompleted && completion ? Number(completion.score) : NaN;
+    var hasScore = isFinite(score) && score > 0;
+    if (hasScore) {
+      field(card, 'score-badge').textContent = interpolate(gettext('Scored %(score)s'), { score: score + '%' });
+    }
+    show(field(card, 'score-badge'), hasScore);
+
+    // Progress + CTA, as CourseCardProgress / CourseCardActions. A completed course shows no
+    // progress bar and a "Revisit Course" action instead.
+    var isCompleted = Boolean(completion) && due.isCompleted;
+    var hasStarted = Boolean(completion) && completion.completion > 0 && !isCompleted;
     if (hasStarted) {
       var percent = Math.max(0, Math.min(100, Math.round(completion.completion)));
       field(card, 'progress-value').textContent = percent + '%';
@@ -313,9 +324,19 @@
     show(field(card, 'progress'), hasStarted);
 
     if (completion) {
-      field(card, 'cta').setAttribute('href', '/courses/' + encodeURIComponent(courseId) + '/courseware');
-      field(card, 'cta-label').textContent = hasStarted ? gettext('Resume') : gettext('Enroll and Start');
+      var coursewareUrl = '/courses/' + encodeURIComponent(courseId) + '/courseware';
+      field(card, 'cta').setAttribute('href', coursewareUrl);
+      // PRD LMS 5.2: for an enrolled learner, the card opens the course player, not the about page.
+      field(card, 'title-link').setAttribute('href', coursewareUrl);
+      var ctaLabel = gettext('Enroll and Start');
+      if (isCompleted) {
+        ctaLabel = gettext('Revisit Course');
+      } else if (hasStarted) {
+        ctaLabel = gettext('Resume');
+      }
+      field(card, 'cta-label').textContent = ctaLabel;
     }
+    field(card, 'cta').classList.toggle('lw-course-card__cta--revisit', isCompleted);
     show(field(card, 'cta-icon'), hasStarted);
     // Card info only loads for signed-in learners; the rating API only accepts enrolled
     // ones (CourseCardMenu useOptionVisibility).
@@ -336,16 +357,18 @@
       : gettext('Add to my list');
   }
 
+  // Resolves once the cards are filled in, so lw-courses-tabs.js can build them off-screen and
+  // show them complete. Never rejects (the lookups resolve null/{} on failure).
   function enhance(root) {
     var cards = Array.prototype.filter.call(
       root.querySelectorAll('.lw-course-card[data-course-id]'),
       function (card) { return !card.hasAttribute('data-lw-ready'); }
     );
-    if (!cards.length) { return; }
+    if (!cards.length) { return Promise.resolve(); }
     cards.forEach(function (card) { card.setAttribute('data-lw-ready', ''); });
 
     var ids = cards.map(function (card) { return card.getAttribute('data-course-id'); });
-    Promise.all([getCompletionById(), loadCardInfo(ids), getCertificateDateById()]).then(function (results) {
+    return Promise.all([getCompletionById(), loadCardInfo(ids), getCertificateDateById()]).then(function (results) {
       var now = Date.now();
       cards.forEach(function (card) { renderCard(card, results[0], results[1], results[2], now); });
     });

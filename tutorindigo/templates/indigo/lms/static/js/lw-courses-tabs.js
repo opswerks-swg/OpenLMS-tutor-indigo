@@ -20,13 +20,13 @@
       showDiscoverCta: true,
     },
     assigned: {
-      title: gettext('No assigned courses.'),
-      body: gettext('When courses are assigned to you, they will appear here.'),
-      showDiscoverCta: false,
+      title: gettext('No assigned courses yet.'),
+      body: gettext('Browse other courses for the meantime while waiting'),
+      showDiscoverCta: true,
     },
     suggested: {
       title: gettext('No suggested courses yet.'),
-      body: gettext('Suggestions will appear based on your role and learning activity.'),
+      body: gettext('Check back as new courses are added to the library.'),
       showDiscoverCta: true,
     },
     new: {
@@ -35,20 +35,39 @@
       showDiscoverCta: true,
     },
     mylist: {
-      title: gettext('Your list is empty.'),
-      body: gettext('Save courses from a card to find them here later.'),
+      title: gettext('No saved courses.'),
+      body: gettext('Build your own list by saving courses you are interested in!'),
       showDiscoverCta: true,
+      ctaLabel: gettext('Browse your library'),
     },
   };
 
   var PAGE_SIZE = 20;
+
+  // Loading (no flicker): responses are cached briefly and prefetched when a tab is hovered or
+  // focused; cards are built and filled in off-screen, then swapped in at once. The skeleton
+  // only appears when loading is slow, and once shown stays long enough not to blink.
+  var CACHE_TTL_MS = 60 * 1000;
+  var SKELETON_DELAY_MS = 150;
+  var SKELETON_MIN_MS = 300;
+  // Don't hold finished rows back forever on a slow card-info / completion lookup.
+  var ENHANCE_TIMEOUT_MS = 2500;
+  var SKELETON_COUNT = 3;
+  // Above-the-fold card images load eagerly so they are ready when the cards are swapped in.
+  var EAGER_IMAGES = 3;
 
   var state = {
     tab: 'continue',
     page: 1,
     // Incremented per fetch; only the newest response may render (see fetchTab).
     requestId: 0,
+    // performance.now() when the skeleton went up, or null while it is down.
+    skeletonShownAt: null,
+    skeletonTimer: null,
   };
+
+  // url -> { at, promise } (see loadTab).
+  var responseCache = {};
 
   var HTML_ESCAPES = {
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
@@ -71,6 +90,33 @@
       });
   }
 
+  function tabUrl(tab, page) {
+    return LIBRARY_URL + '?tab=' + encodeURIComponent(tab)
+      + '&page=' + encodeURIComponent(String(page))
+      + '&page_size=' + PAGE_SIZE;
+  }
+
+  // Cached for CACHE_TTL_MS; a failed request is dropped so the next try refetches.
+  function loadTab(tab, page) {
+    var url = tabUrl(tab, page);
+    var entry = responseCache[url];
+    if (entry && Date.now() - entry.at < CACHE_TTL_MS) { return entry.promise; }
+    var promise = getJson(url);
+    responseCache[url] = { at: Date.now(), promise: promise };
+    promise.catch(function () {
+      if (responseCache[url] && responseCache[url].promise === promise) { delete responseCache[url]; }
+    });
+    return promise;
+  }
+
+  function prefetchTab(tab) {
+    if (VALID_TABS.indexOf(tab) >= 0) { loadTab(tab, 1).catch(function () {}); }
+  }
+
+  function clearCache() {
+    responseCache = {};
+  }
+
   function tabFromQuery() {
     var tab = new URLSearchParams(window.location.search).get('tab');
     return VALID_TABS.indexOf(tab) >= 0 ? tab : 'continue';
@@ -84,7 +130,22 @@
     window.history.replaceState({}, '', nextUrl);
   }
 
-  function cardHtml(row) {
+  // Assigned tab: completion-state tag per card (PRD LMS 5.3). Due and overdue dates are left to
+  // the image badge, as on the learner dashboard card (CourseCardMeta).
+  var STATUS_LABELS = {
+    not_started: gettext('Not Started'),
+    in_progress: gettext('In Progress'),
+    failed: gettext('Failed'),
+  };
+
+  // Assigned rows carry status; other tabs don't, so nothing renders for them.
+  function assignedChipsHtml(row) {
+    if (!STATUS_LABELS[row.status]) { return ''; }
+    return '<span class="lw-course-card__chip lw-course-card__chip--status lw-course-card__chip--' + escapeHtml(row.status) + '">'
+      + escapeHtml(STATUS_LABELS[row.status]) + '</span>';
+  }
+
+  function cardHtml(row, index) {
     var courseId = escapeHtml(row.courseId);
     var title = escapeHtml(row.title);
     var imageUrl = escapeHtml(row.imageUrl || '');
@@ -98,15 +159,20 @@
       '<article class="lw-course-card" aria-label="' + title + '"'
       + ' data-course-id="' + courseId + '" data-course-end="' + courseEnd + '">'
       + '<div class="lw-course-card__image">'
-      + '<img src="' + imageUrl + '" alt="" loading="lazy"'
+      + '<img src="' + imageUrl + '" alt="" decoding="async"'
+      + ' loading="' + (index < EAGER_IMAGES ? 'eager' : 'lazy') + '"'
+      + ' onload="this.setAttribute(\'data-loaded\', \'\')"'
       + ' onerror="this.onerror=null;this.src=\'/theming/asset/images/no_course_image.png\';" />'
+      + '<div class="lw-course-card__badges">'
       + '<span class="lw-course-card__badge" data-lw="badge" hidden></span>'
+      + '<span class="lw-course-card__badge lw-course-card__badge--completed" data-lw="score-badge" hidden></span>'
+      + '</div>'
       + '</div>'
       + '<div class="lw-course-card__body">'
       + '<div class="lw-course-card__meta">'
       + '<div class="lw-course-card__heading">'
       + '<div class="lw-course-card__title-row">'
-      + '<h3 class="lw-course-card__title"><a href="' + aboutUrl + '">' + title + '</a></h3>'
+      + '<h3 class="lw-course-card__title"><a href="' + aboutUrl + '" data-lw="title-link">' + title + '</a></h3>'
       + '<span class="lw-course-card__rating" data-lw="rating" hidden>'
       + '<span class="lw-icon lw-icon--star" aria-hidden="true"></span>'
       + '<span aria-hidden="true" data-lw="rating-value"></span>'
@@ -121,7 +187,9 @@
       + '<span class="lw-course-card__chip-plain" data-lw="duration-chip" hidden>'
       + '<span class="lw-icon lw-icon--clock" aria-hidden="true"></span>'
       + '<span data-lw="duration"></span>'
-      + '</span></div>'
+      + '</span>'
+      + assignedChipsHtml(row)
+      + '</div>'
       + '</div>'
       + '<div class="lw-course-card__bottom">'
       + '<div class="lw-course-card__progress" data-lw="progress" hidden>'
@@ -161,12 +229,64 @@
     );
   }
 
-  function renderList(rows) {
+  // A detached list of filled-in cards, ready to swap in (see fetchTab).
+  function buildList(rows) {
+    var staged = document.createElement('ul');
+    staged.innerHTML = rows.map(function (row, index) {
+      return '<li class="courses-listing-item">' + cardHtml(row, index) + '</li>';
+    }).join('');
+    return staged;
+  }
+
+  function enhanceCards(root) {
+    if (typeof window.lwCourseCardsEnhance !== 'function') { return Promise.resolve(); }
+    var enhanced = Promise.resolve(window.lwCourseCardsEnhance(root)).catch(function () {});
+    var timeout = new Promise(function (resolve) { window.setTimeout(resolve, ENHANCE_TIMEOUT_MS); });
+    return Promise.race([enhanced, timeout]);
+  }
+
+  function commitList(staged) {
     var list = document.getElementById('lw-courses-listing');
     if (!list) { return; }
-    list.innerHTML = rows.map(function (row) {
-      return '<li class="courses-listing-item">' + cardHtml(row) + '</li>';
-    }).join('');
+    list.textContent = '';
+    while (staged.firstChild) { list.appendChild(staged.firstChild); }
+  }
+
+  // Same shape as the server-rendered skeleton in courses.html.
+  function skeletonHtml() {
+    var item = '<li class="courses-listing-item lw-course-skeleton-item" aria-hidden="true">'
+      + '<div class="lw-course-card lw-course-card--skeleton">'
+      + '<div class="lw-course-card__image"></div>'
+      + '<div class="lw-course-card__body">'
+      + '<span class="lw-skeleton lw-skeleton--title"></span>'
+      + '<span class="lw-skeleton lw-skeleton--text"></span>'
+      + '<span class="lw-skeleton lw-skeleton--text lw-skeleton--short"></span>'
+      + '<span class="lw-skeleton lw-skeleton--button"></span>'
+      + '</div></div></li>';
+    var html = '';
+    for (var i = 0; i < SKELETON_COUNT; i += 1) { html += item; }
+    return html;
+  }
+
+  function showSkeleton(tab) {
+    var list = document.getElementById('lw-courses-listing');
+    if (!list) { return; }
+    setEmptyState(tab, false);
+    setMessage('', false);
+    renderPagination(null, 0);
+    list.innerHTML = skeletonHtml();
+    state.skeletonShownAt = performance.now();
+  }
+
+  // Waits out SKELETON_MIN_MS when the skeleton is up, so it never just blinks.
+  function skeletonSettled() {
+    window.clearTimeout(state.skeletonTimer);
+    state.skeletonTimer = null;
+    if (state.skeletonShownAt === null) { return Promise.resolve(); }
+    var remaining = SKELETON_MIN_MS - (performance.now() - state.skeletonShownAt);
+    return remaining > 0
+      ? new Promise(function (resolve) { window.setTimeout(resolve, remaining); })
+      : Promise.resolve();
   }
 
   function setActiveTab(tab) {
@@ -201,6 +321,7 @@
     var titleEl = block.querySelector('[data-lw-empty="title"]');
     var bodyEl = block.querySelector('[data-lw-empty="body"]');
     var ctaEl = block.querySelector('[data-lw-empty="cta"]');
+    var ctaLabelEl = block.querySelector('[data-lw-empty="cta-label"]');
 
     if (titleEl) { titleEl.textContent = config.title; }
     if (bodyEl) { bodyEl.textContent = config.body; }
@@ -208,6 +329,9 @@
       var discoverUrl = (holder && holder.getAttribute('data-discover-url')) || '/search';
       ctaEl.setAttribute('href', discoverUrl);
       ctaEl.hidden = !config.showDiscoverCta;
+    }
+    if (ctaLabelEl) {
+      ctaLabelEl.textContent = config.ctaLabel || gettext('Discover Courses');
     }
 
     block.hidden = !visible;
@@ -284,51 +408,61 @@
     holder.hidden = false;
   }
 
-  function setLoading(loading) {
-    var holder = document.querySelector('.lw-courses-library');
-    if (holder) {
-      holder.classList.toggle('lw-courses-library--loading', loading);
-    }
+  function setBusy(busy) {
+    var panel = document.getElementById('lw-courses-panel');
+    if (panel) { panel.setAttribute('aria-busy', busy ? 'true' : 'false'); }
   }
 
-  function enhanceCards() {
-    var holder = document.querySelector('.lw-courses-library');
-    if (holder && typeof window.lwCourseCardsEnhance === 'function') {
-      window.lwCourseCardsEnhance(holder);
-    }
-  }
-
-  // Resolves to true when this response was rendered, false when a newer request superseded it.
+  /**
+   * Fetch, build and fill in the cards off-screen, then swap them in at once. The current
+   * content stays put until then; the skeleton replaces it only if loading takes longer than
+   * SKELETON_DELAY_MS. Resolves to true when this response was rendered, false when a newer
+   * request superseded it.
+   */
   function fetchTab(tab, page) {
     var requestId = ++state.requestId;
     var isCurrent = function () { return requestId === state.requestId; };
-    setLoading(true);
-    setMessage('', false);
+    setBusy(true);
+    if (state.skeletonShownAt === null) {
+      window.clearTimeout(state.skeletonTimer);
+      state.skeletonTimer = window.setTimeout(function () {
+        if (isCurrent()) { showSkeleton(tab); }
+      }, SKELETON_DELAY_MS);
+    }
 
-    var url = LIBRARY_URL + '?tab=' + encodeURIComponent(tab)
-      + '&page=' + encodeURIComponent(String(page))
-      + '&page_size=' + PAGE_SIZE;
-
-    return getJson(url).then(function (data) {
+    var staged = null;
+    return loadTab(tab, page).then(function (data) {
       if (!isCurrent()) { return false; }
       var results = Array.isArray(data.results) ? data.results : [];
       // The page emptied under us (e.g. its last My List course was removed): step back.
       if (!results.length && page > 1) { return fetchTab(tab, page - 1); }
-      state.page = Number(data.page) || page;
-      renderList(results);
-      setEmptyState(tab, !results.length);
-      renderPagination(data, results.length);
-      enhanceCards();
-      return true;
+      staged = buildList(results);
+      return enhanceCards(staged).then(function () {
+        // A superseded request must not touch the newer one's skeleton timer.
+        return isCurrent() ? skeletonSettled() : null;
+      }).then(function () {
+        if (!isCurrent()) { return false; }
+        state.page = Number(data.page) || page;
+        commitList(staged);
+        state.skeletonShownAt = null;
+        setMessage('', false);
+        setEmptyState(tab, !results.length);
+        renderPagination(data, results.length);
+        setBusy(false);
+        return true;
+      });
     }).catch(function () {
       if (!isCurrent()) { return false; }
-      renderList([]);
-      setEmptyState(tab, false);
-      setMessage(gettext('Unable to load courses. Please try again.'), true);
-      renderPagination(null, 0);
-      return true;
-    }).finally(function () {
-      if (isCurrent()) { setLoading(false); }
+      return skeletonSettled().then(function () {
+        if (!isCurrent()) { return false; }
+        commitList(document.createElement('ul'));
+        state.skeletonShownAt = null;
+        setEmptyState(tab, false);
+        setMessage(gettext('Unable to load courses. Please try again.'), true);
+        renderPagination(null, 0);
+        setBusy(false);
+        return true;
+      });
     });
   }
 
@@ -352,11 +486,13 @@
     // lw-course-cards.js fires this after "Add to / Remove from my list"; keep the My List
     // tab in step with it (a removed course leaves the list, the pager recounts).
     document.addEventListener('lw:my-list-changed', function () {
+      clearCache();
       if (state.tab === 'mylist') { fetchTab('mylist', state.page); }
     });
     // After an unenroll, reload the open tab so the course leaves Continue Learning and the
     // cards' progress and buttons are redrawn from fresh enrollment data.
     document.addEventListener('lw:enrollment-changed', function () {
+      clearCache();
       fetchTab(state.tab, state.page).then(function (rendered) {
         // The card whose menu had focus was just replaced; keep focus in the section.
         var heading = document.getElementById('lw-courses-section-title');
@@ -366,8 +502,21 @@
     var list = document.getElementById('lw-courses-listing');
     if (!tablist || !list) { return; }
 
-    // Default Continue empty state (Figma 662:236) until the library API responds.
-    setEmptyState('continue', true);
+    // courses.html paints the skeleton for the ?tab= tab, so the first load swaps straight
+    // from it to the cards (or the empty state) with no minimum wait.
+    if (document.querySelector('.lw-course-skeleton-item')) {
+      state.skeletonShownAt = performance.now() - SKELETON_MIN_MS;
+    }
+
+    // Intent prefetch: hovering or focusing a tab warms its first page.
+    ['pointerenter', 'focusin'].forEach(function (type) {
+      tablist.addEventListener(type, function (event) {
+        var button = event.target.closest && event.target.closest('.lw-courses-tabs__tab');
+        if (button && button.getAttribute('data-tab') !== state.tab) {
+          prefetchTab(button.getAttribute('data-tab'));
+        }
+      }, true);
+    });
 
     tablist.addEventListener('click', function (event) {
       var button = event.target.closest('.lw-courses-tabs__tab');

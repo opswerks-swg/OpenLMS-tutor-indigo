@@ -120,19 +120,35 @@ $lw-icon-star: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/s
             height: 100%;
             object-fit: cover;
             object-position: center;
+            transition: opacity 0.2s ease-out;
+
+            // Fades in over the slate placeholder instead of painting in strips
+            // (data-loaded is set by the img onload in lw-courses-tabs.js cardHtml).
+            &:not([data-loaded]) {
+                opacity: 0;
+            }
         }
     }
 
-    // Small Text - code, bold
-    // Status on the image: "Completed – date", "Overdue for N days – date", "Due in N days – date".
-    &__badge {
-        @extend %lw-code-small;
+    // Badges on the image, stacked at the top right: the status ("Completed – date",
+    // "Overdue for N days – date", "Due in N days – date") and, for completed courses, the score.
+    &__badges {
         position: absolute;
         top: 10px;
         right: 10px;
         z-index: 1;
-        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 6px;
         max-width: calc(100% - 20px);
+    }
+
+    // Small Text - code
+    &__badge {
+        @extend %lw-code-small;
+        box-sizing: border-box;
+        max-width: 100%;
         padding: 2px 8px;
         overflow: hidden;
         border-radius: $lw-card-radius;
@@ -244,6 +260,10 @@ $lw-icon-star: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/s
         padding: 2px 8px;
         border-radius: 2px;
         background-color: $lw-card-slate-100;
+
+        // Assigned-tab completion-state tags, in the status badge palette.
+        &--in_progress { background-color: $lw-card-blue-50; color: $lw-card-blue-600; }
+        &--failed { background-color: $lw-card-badge-overdue-bg; color: $lw-card-badge-overdue-text; }
     }
 
     &__chip-plain {
@@ -337,6 +357,18 @@ $lw-icon-star: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/s
         }
     }
 
+    // Completed course: "Revisit Course" as a light secondary button (slate-100 fill, navy text).
+    a.lw-course-card__cta.lw-course-card__cta--revisit {
+        background: $lw-card-slate-100 !important;
+        color: $lw-card-blue-600 !important;
+
+        &:hover,
+        &:focus {
+            filter: none;
+            background: $lw-card-slate-200 !important;
+        }
+    }
+
     // Actions menu (learner dashboard CourseCardMenu): "..." toggle next to the CTA and a
     // small list that opens above it. !important on the paint: the LMS global <button>
     // styles (navy gradient fill, inset shadow, border, padding) otherwise win.
@@ -421,6 +453,57 @@ $lw-icon-star: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/s
     }
 }
 
+// Loading skeleton (courses.html + skeletonHtml() in lw-courses-tabs.js): the card's own frame
+// and image box, with placeholder bars for the title, byline lines and button.
+.lw-course-card--skeleton {
+    .lw-course-card__body {
+        justify-content: flex-start;
+        gap: 12px;
+    }
+}
+
+.lw-skeleton {
+    display: block;
+    height: 14px;
+    border-radius: 4px;
+    background: linear-gradient(90deg, $lw-card-slate-100 25%, $lw-card-slate-200 50%, $lw-card-slate-100 75%);
+    background-size: 200% 100%;
+    animation: lw-skeleton-shimmer 1.4s ease-in-out infinite;
+
+    &--title { width: 70%; height: 20px; }
+    &--text { width: 90%; }
+    &--short { width: 55%; }
+    &--button {
+        width: 100%;
+        height: $lw-card-control-size;
+        margin-top: 24px;
+        border-radius: $lw-card-control-radius;
+    }
+}
+
+.lw-course-card--skeleton .lw-course-card__image {
+    height: $lw-card-image-height;
+    background: linear-gradient(90deg, $lw-card-slate-100 25%, $lw-card-slate-200 50%, $lw-card-slate-100 75%);
+    background-size: 200% 100%;
+    animation: lw-skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes lw-skeleton-shimmer {
+    from { background-position: 100% 0; }
+    to { background-position: -100% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .lw-skeleton,
+    .lw-course-card--skeleton .lw-course-card__image {
+        animation: none;
+    }
+
+    .lw-course-card__image img {
+        transition: none;
+    }
+}
+
 body.indigo-dark-theme .lw-course-card {
     background: $primary-light-d;
     border-color: $border-color-d;
@@ -447,6 +530,11 @@ body.indigo-dark-theme .lw-course-card {
         color: $text-color-d;
     }
 
+    a.lw-course-card__cta.lw-course-card__cta--revisit {
+        background: $light-overlay-d !important;
+        color: $text-color-d !important;
+    }
+
     button.lw-course-card__menu-toggle,
     button.lw-course-card__menu-item {
         color: $text-color-d !important;
@@ -463,4 +551,10 @@ body.indigo-dark-theme .lw-course-card {
         border-color: $border-color-d;
         background: $primary-light-d;
     }
+}
+
+body.indigo-dark-theme .lw-skeleton,
+body.indigo-dark-theme .lw-course-card--skeleton .lw-course-card__image {
+    background: linear-gradient(90deg, $primary-light-d 25%, $light-overlay-d 50%, $primary-light-d 75%);
+    background-size: 200% 100%;
 }
