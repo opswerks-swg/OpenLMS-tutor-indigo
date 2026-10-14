@@ -47,21 +47,28 @@
     return completionPromise;
   }
 
-  // Card info is cached per course id; only ids not seen yet are requested.
-  var cardInfoById = {};
+  // Card info is cached per course id as a promise, so a card rendered while its request
+  // is still in flight waits for it. Only ids not requested yet are fetched.
+  var cardInfoRequests = {};
   function loadCardInfo(courseIds) {
-    var missing = courseIds.filter(function (id) { return !(id in cardInfoById); });
-    if (!missing.length) {
-      return Promise.resolve(cardInfoById);
-    }
-    missing.forEach(function (id) { cardInfoById[id] = null; });
-    var query = missing.map(function (id) { return 'course_id=' + encodeURIComponent(id); }).join('&');
-    return getJson(CARD_INFO_URL + '?' + query).then(function (data) {
-      ((data && data.results) || []).forEach(function (info) {
-        cardInfoById[info.course_id] = info;
+    var missing = courseIds.filter(function (id) { return !(id in cardInfoRequests); });
+    if (missing.length) {
+      var query = missing.map(function (id) { return 'course_id=' + encodeURIComponent(id); }).join('&');
+      var request = getJson(CARD_INFO_URL + '?' + query).then(function (data) {
+        var byId = {};
+        ((data && data.results) || []).forEach(function (info) { byId[info.course_id] = info; });
+        return byId;
       });
-      return cardInfoById;
-    });
+      missing.forEach(function (id) {
+        cardInfoRequests[id] = request.then(function (byId) { return byId[id] || null; });
+      });
+    }
+    return Promise.all(courseIds.map(function (id) { return cardInfoRequests[id]; }))
+      .then(function (infos) {
+        var cardInfoById = {};
+        courseIds.forEach(function (id, index) { cardInfoById[id] = infos[index]; });
+        return cardInfoById;
+      });
   }
 
   // Calendar day, as the learner dashboard parseDateOnly reads due and end dates.
@@ -134,6 +141,24 @@
     return rounded % 1 === 0 ? rounded.toFixed(0) : String(rounded);
   }
 
+  /**
+   * Fills element with a translated string whose %(due_date)s placeholder becomes a
+   * <time> element. Built with DOM nodes, not innerHTML, so translations can't inject markup.
+   */
+  function renderWithDueDate(element, template, values, date, dateText) {
+    var placeholder = '%(due_date)s';
+    var text = interpolate(template, Object.assign({}, values, { due_date: placeholder }));
+    var time = document.createElement('time');
+    time.setAttribute('datetime', toIsoDay(date));
+    time.textContent = dateText;
+
+    element.textContent = '';
+    text.split(placeholder).forEach(function (part, index) {
+      if (index > 0) { element.appendChild(time.cloneNode(true)); }
+      element.appendChild(document.createTextNode(part));
+    });
+  }
+
   function field(card, name) {
     return card.querySelector('[data-lw="' + name + '"]');
   }
@@ -142,7 +167,7 @@
     if (element) { element.hidden = !visible; }
   }
 
-  function renderCard(card, completionById, now) {
+  function renderCard(card, completionById, cardInfoById, now) {
     var courseId = card.getAttribute('data-course-id');
     var completion = completionById[courseId];
     var cardInfo = cardInfoById[courseId];
@@ -178,15 +203,17 @@
 
     // Due chip until overdue, then the orange status line replaces it.
     if (dueText) {
-      var dueTime = '<time datetime="' + toIsoDay(due.dueDate) + '">' + dueText + '</time>';
-      field(card, 'due-text').innerHTML = interpolate(gettext('Due: %(due_date)s'), { due_date: dueTime });
-      field(card, 'overdue').innerHTML = interpolate(
+      renderWithDueDate(field(card, 'due-text'), gettext('Due: %(due_date)s'), {}, due.dueDate, dueText);
+      renderWithDueDate(
+        field(card, 'overdue'),
         ngettext(
           'Due %(due_date)s · %(days)s day overdue',
           'Due %(due_date)s · %(days)s days overdue',
           due.daysOverdue
         ),
-        { due_date: dueTime, days: due.daysOverdue }
+        { days: due.daysOverdue },
+        due.dueDate,
+        dueText
       );
     }
     show(field(card, 'due'), Boolean(dueText) && !due.isOverdue);
@@ -220,7 +247,7 @@
     var ids = cards.map(function (card) { return card.getAttribute('data-course-id'); });
     Promise.all([getCompletionById(), loadCardInfo(ids)]).then(function (results) {
       var now = Date.now();
-      cards.forEach(function (card) { renderCard(card, results[0], now); });
+      cards.forEach(function (card) { renderCard(card, results[0], results[1], now); });
     });
   }
 

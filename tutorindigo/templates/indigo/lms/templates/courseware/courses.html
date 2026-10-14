@@ -46,33 +46,33 @@
       <section class="courses-container">
 
         <!-- Learning Library (Figma 662:236): tabs + section + empty state -->
-        <nav class="lw-courses-tabs" role="tablist" aria-label="${_('Course collections')}">
+        <div class="lw-courses-tabs" role="tablist" aria-label="${_('Course collections')}">
           <button type="button" class="lw-courses-tabs__tab lw-courses-tabs__tab--active" role="tab"
                   id="lw-tab-continue" aria-selected="true" aria-controls="lw-courses-panel"
                   data-tab="continue" data-heading="${_('Continue Learning')}">
             ${_("Continue Learning")}
           </button>
           <button type="button" class="lw-courses-tabs__tab" role="tab"
-                  id="lw-tab-assigned" aria-selected="false" aria-controls="lw-courses-panel"
+                  id="lw-tab-assigned" aria-selected="false" tabindex="-1" aria-controls="lw-courses-panel"
                   data-tab="assigned" data-heading="${_('Assigned Courses')}">
             ${_("Assigned Courses")}
           </button>
           <button type="button" class="lw-courses-tabs__tab" role="tab"
-                  id="lw-tab-suggested" aria-selected="false" aria-controls="lw-courses-panel"
+                  id="lw-tab-suggested" aria-selected="false" tabindex="-1" aria-controls="lw-courses-panel"
                   data-tab="suggested" data-heading="${_('Suggested')}">
             ${_("Suggested")}
           </button>
           <button type="button" class="lw-courses-tabs__tab" role="tab"
-                  id="lw-tab-new" aria-selected="false" aria-controls="lw-courses-panel"
+                  id="lw-tab-new" aria-selected="false" tabindex="-1" aria-controls="lw-courses-panel"
                   data-tab="new" data-heading="${_('New Courses')}">
             ${_("New Courses")}
           </button>
           <button type="button" class="lw-courses-tabs__tab" role="tab"
-                  id="lw-tab-mylist" aria-selected="false" aria-controls="lw-courses-panel"
+                  id="lw-tab-mylist" aria-selected="false" tabindex="-1" aria-controls="lw-courses-panel"
                   data-tab="mylist" data-heading="${_('My List')}">
             ${_("My List")}
           </button>
-        </nav>
+        </div>
 
         <h2 class="lw-courses-section-title" id="lw-courses-section-title">${_("Continue Learning")}</h2>
         <div class="course-holder courses lw-courses-library no-course-discovery" role="tabpanel"

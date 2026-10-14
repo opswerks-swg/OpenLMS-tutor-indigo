@@ -46,13 +46,19 @@
   var state = {
     tab: 'continue',
     page: 1,
-    loading: false,
+    // Incremented per fetch; only the newest response may render (see fetchTab).
+    requestId: 0,
   };
 
+  var HTML_ESCAPES = {
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  };
+
+  // Safe in text and in quoted attributes (cardHtml puts API fields in both).
   function escapeHtml(value) {
-    var div = document.createElement('div');
-    div.textContent = value == null ? '' : String(value);
-    return div.innerHTML;
+    return (value == null ? '' : String(value)).replace(/[&<>"']/g, function (ch) {
+      return HTML_ESCAPES[ch];
+    });
   }
 
   function getJson(url) {
@@ -132,10 +138,8 @@
       + '<span class="lw-icon lw-icon--play" aria-hidden="true" data-lw="cta-icon" hidden></span>'
       + '<span data-lw="cta-label">' + gettext('View Course') + '</span>'
       + '</a>'
-      + '<button type="button" class="lw-course-card__bookmark"'
-      + ' aria-label="' + interpolate(gettext('Bookmark %(course_name)s'), { course_name: title }, true) + '">'
-      + '<span class="lw-icon lw-icon--bookmark" aria-hidden="true"></span>'
-      + '</button>'
+      // Figma's bookmark button is left out until "My List" has an API to save to;
+      // its styles stay in _course-card.scss (.lw-course-card__bookmark).
       + '</div></div></div></article>'
     );
   }
@@ -154,6 +158,8 @@
       var isActive = button.getAttribute('data-tab') === tab;
       button.classList.toggle('lw-courses-tabs__tab--active', isActive);
       button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+      // Roving tabindex: Tab enters the tablist on the active tab; arrows move between tabs.
+      button.setAttribute('tabindex', isActive ? '0' : '-1');
     });
     var activeButton = document.querySelector('.lw-courses-tabs__tab[data-tab="' + tab + '"]');
     var heading = document.getElementById('lw-courses-section-title');
@@ -275,9 +281,10 @@
     }
   }
 
+  // Resolves to true when this response was rendered, false when a newer request superseded it.
   function fetchTab(tab, page) {
-    if (state.loading) { return Promise.resolve(); }
-    state.loading = true;
+    var requestId = ++state.requestId;
+    var isCurrent = function () { return requestId === state.requestId; };
     setLoading(true);
     setMessage('', false);
 
@@ -286,20 +293,23 @@
       + '&page_size=' + PAGE_SIZE;
 
     return getJson(url).then(function (data) {
+      if (!isCurrent()) { return false; }
       var results = Array.isArray(data.results) ? data.results : [];
       state.page = Number(data.page) || page;
       renderList(results);
       setEmptyState(tab, !results.length);
       renderPagination(data, results.length);
       enhanceCards();
+      return true;
     }).catch(function () {
+      if (!isCurrent()) { return false; }
       renderList([]);
       setEmptyState(tab, false);
       setMessage(gettext('Unable to load courses. Please try again.'), true);
       renderPagination(null, 0);
+      return true;
     }).finally(function () {
-      state.loading = false;
-      setLoading(false);
+      if (isCurrent()) { setLoading(false); }
     });
   }
 
@@ -310,8 +320,8 @@
     state.page = 1;
     setActiveTab(tab);
     setQueryTab(tab);
-    return fetchTab(tab, 1).then(function () {
-      if (!opts.silentFocus && document.getElementById('lw-courses-panel')) {
+    return fetchTab(tab, 1).then(function (rendered) {
+      if (rendered && !opts.silentFocus && document.getElementById('lw-courses-panel')) {
         document.getElementById('lw-courses-panel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }
     });
@@ -359,12 +369,12 @@
     if (pagination) {
       pagination.addEventListener('click', function (event) {
         var button = event.target.closest('.lw-courses-pagination__page');
-        if (!button || !pagination.contains(button) || state.loading) { return; }
+        if (!button || !pagination.contains(button)) { return; }
         var page = parseInt(button.getAttribute('data-page'), 10);
         if (!page || page === state.page) { return; }
-        fetchTab(state.tab, page).then(function () {
+        fetchTab(state.tab, page).then(function (rendered) {
           var panel = document.getElementById('lw-courses-panel');
-          if (panel) { panel.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+          if (rendered && panel) { panel.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
         });
       });
     }

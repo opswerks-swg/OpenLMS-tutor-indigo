@@ -1,7 +1,6 @@
 // Course card — same card as the learner dashboard (frontend-app-learner-dashboard
 // src/containers/CourseCard/CourseCard.scss + CourseCardMeta/index.scss, OpenLMS Figma 82:2140).
-// Markup (keep in sync): templates/course.html, templates/discovery/course_card.underscore and
-// cardHtml() in js/lw-courses-tabs.js. On /courses, js/lw-course-cards.js fills the
+// Markup: cardHtml() in js/lw-courses-tabs.js. On /courses, js/lw-course-cards.js fills the
 // learner-specific parts (badge, due date, progress, CTA).
 
 $lw-card-slate-50: #F8FAFC;
@@ -312,8 +311,8 @@ $lw-icon-star: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/s
         }
     }
 
-    // Bookmark: 40px slate-100 square with the 24px icon (presentational until a bookmark
-    // API exists, as in the learner dashboard). !important on the paint: the LMS global
+    // Bookmark: 40px slate-100 square with the 24px icon. Not rendered yet: cardHtml() adds
+    // it back once "My List" has a bookmark API. !important on the paint: the LMS global
     // <button> styles (navy gradient fill, inset shadow, border, padding) otherwise win.
     button.lw-course-card__bookmark {
         display: inline-flex;
