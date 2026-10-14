@@ -107,6 +107,11 @@
       + '<div class="lw-course-card__heading">'
       + '<div class="lw-course-card__title-row">'
       + '<h3 class="lw-course-card__title"><a href="' + aboutUrl + '">' + title + '</a></h3>'
+      + '<span class="lw-course-card__rating" data-lw="rating" hidden>'
+      + '<span class="lw-icon lw-icon--star" aria-hidden="true"></span>'
+      + '<span aria-hidden="true" data-lw="rating-value"></span>'
+      + '<span class="lw-sr-only" data-lw="rating-summary"></span>'
+      + '</span>'
       + '</div>'
       + '<span class="lw-course-card__provider" data-lw="provider">' + providerLabel + '</span>'
       + '</div>'
@@ -138,8 +143,25 @@
       + '<span class="lw-icon lw-icon--play" aria-hidden="true" data-lw="cta-icon" hidden></span>'
       + '<span data-lw="cta-label">' + gettext('View Course') + '</span>'
       + '</a>'
-      // Figma's bookmark button is left out until "My List" has an API to save to;
-      // its styles stay in _course-card.scss (.lw-course-card__bookmark).
+      // Actions menu (learner dashboard CourseCardMenu); lw-course-cards.js shows it to
+      // signed-in learners, with "Rate this course" and "Unenroll" for enrolled ones only.
+      + '<div class="lw-course-card__menu" data-lw="menu" hidden>'
+      + '<button type="button" class="lw-course-card__menu-toggle" aria-haspopup="true" aria-expanded="false"'
+      + ' aria-label="' + escapeHtml(gettext('Course actions dropdown')) + '" data-lw="menu-toggle">'
+      + '<span class="lw-icon lw-icon--more" aria-hidden="true"></span>'
+      + '</button>'
+      + '<ul class="lw-course-card__menu-list" role="menu" data-lw="menu-list" hidden>'
+      + '<li role="none"><button type="button" class="lw-course-card__menu-item" role="menuitem"'
+      + ' data-lw-action="my-list" data-lw="my-list-item">' + escapeHtml(gettext('Add to my list')) + '</button></li>'
+      + '<li role="none" data-lw="rate-item"><button type="button" class="lw-course-card__menu-item" role="menuitem" data-lw-action="rate">'
+      + escapeHtml(gettext('Rate this course')) + '</button></li>'
+      + '<li role="none" data-lw="unenroll-item"><button type="button" class="lw-course-card__menu-item" role="menuitem" data-lw-action="unenroll">'
+      + escapeHtml(gettext('Unenroll')) + '</button></li>'
+      + '<li role="none" data-lw="share-facebook-item" hidden><button type="button" class="lw-course-card__menu-item" role="menuitem"'
+      + ' data-lw-action="share" data-lw-site="facebook">' + escapeHtml(gettext('Share to Facebook')) + '</button></li>'
+      + '<li role="none" data-lw="share-twitter-item" hidden><button type="button" class="lw-course-card__menu-item" role="menuitem"'
+      + ' data-lw-action="share" data-lw-site="twitter">' + escapeHtml(gettext('Share to Twitter')) + '</button></li>'
+      + '</ul></div>'
       + '</div></div></div></article>'
     );
   }
@@ -295,6 +317,8 @@
     return getJson(url).then(function (data) {
       if (!isCurrent()) { return false; }
       var results = Array.isArray(data.results) ? data.results : [];
+      // The page emptied under us (e.g. its last My List course was removed): step back.
+      if (!results.length && page > 1) { return fetchTab(tab, page - 1); }
       state.page = Number(data.page) || page;
       renderList(results);
       setEmptyState(tab, !results.length);
@@ -329,6 +353,21 @@
 
   function init() {
     var tablist = document.querySelector('.lw-courses-tabs');
+
+    // lw-course-cards.js fires this after "Add to / Remove from my list"; keep the My List
+    // tab in step with it (a removed course leaves the list, the pager recounts).
+    document.addEventListener('lw:my-list-changed', function () {
+      if (state.tab === 'mylist') { fetchTab('mylist', state.page); }
+    });
+    // After an unenroll, reload the open tab so the course leaves Continue Learning and the
+    // cards' progress and buttons are redrawn from fresh enrollment data.
+    document.addEventListener('lw:enrollment-changed', function () {
+      fetchTab(state.tab, state.page).then(function (rendered) {
+        // The card whose menu had focus was just replaced; keep focus in the section.
+        var heading = document.getElementById('lw-courses-section-title');
+        if (rendered && heading) { heading.focus(); }
+      });
+    });
     var list = document.getElementById('lw-courses-listing');
     if (!tablist || !list) { return; }
 

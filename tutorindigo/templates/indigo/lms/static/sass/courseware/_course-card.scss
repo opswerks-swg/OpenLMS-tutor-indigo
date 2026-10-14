@@ -1,7 +1,7 @@
 // Course card — same card as the learner dashboard (frontend-app-learner-dashboard
 // src/containers/CourseCard/CourseCard.scss + CourseCardMeta/index.scss, OpenLMS Figma 82:2140).
 // Markup: cardHtml() in js/lw-courses-tabs.js. On /courses, js/lw-course-cards.js fills the
-// learner-specific parts (badge, due date, progress, CTA).
+// learner-specific parts (rating, badge, due date, progress, CTA, actions menu).
 
 $lw-card-slate-50: #F8FAFC;
 $lw-card-slate-100: #F1F5F9;
@@ -29,7 +29,9 @@ $lw-card-control-radius: 6px;
 
 $lw-icon-clock: lw-svg('<path d="M8 4.667V8l2 2M2 8a6 6 0 1 0 12 0A6 6 0 0 0 2 8"/>', 16);
 $lw-icon-hourglass: lw-svg('<path d="M4.333 4.667h7.334M4 13.333V12a4 4 0 1 1 8 0v1.333a.667.667 0 0 1-.667.667H4.667A.667.667 0 0 1 4 13.333M4 2.667V4a4 4 0 1 0 8 0V2.667A.667.667 0 0 0 11.333 2H4.667A.667.667 0 0 0 4 2.667"/>', 16);
-$lw-icon-bookmark: lw-svg('<path d="M18 7v14l-6-4-6 4V7a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4"/>');
+// Paragon MoreHoriz / Person (filled), as in the learner dashboard card menu and rating dialog.
+$lw-icon-more: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M8 12c0-1.1-.9-2-2-2s-2 .9-2 2 .9 2 2 2 2-.9 2-2Zm2 0c0 1.1.9 2 2 2s2-.9 2-2-.9-2-2-2-2 .9-2 2Zm6 0c0 1.1.9 2 2 2s2-.9 2-2-.9-2-2-2-2 .9-2 2Z"/></svg>');
+$lw-icon-person: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4Zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4Z"/></svg>');
 $lw-icon-play: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 4v16a1 1 0 0 0 1.524.852l13-8a1 1 0 0 0 0-1.704l-13-8A1 1 0 0 0 6 4"/></svg>');
 $lw-icon-star: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>');
 
@@ -59,9 +61,23 @@ $lw-icon-star: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/s
 
     &--clock { mask-image: $lw-icon-clock; -webkit-mask-image: $lw-icon-clock; }
     &--hourglass { mask-image: $lw-icon-hourglass; -webkit-mask-image: $lw-icon-hourglass; }
-    &--bookmark { width: 24px; height: 24px; mask-image: $lw-icon-bookmark; -webkit-mask-image: $lw-icon-bookmark; }
+    &--more { width: 24px; height: 24px; mask-image: $lw-icon-more; -webkit-mask-image: $lw-icon-more; }
+    &--person { mask-image: $lw-icon-person; -webkit-mask-image: $lw-icon-person; }
     &--play { width: 24px; height: 24px; mask-image: $lw-icon-play; -webkit-mask-image: $lw-icon-play; }
     &--star { mask-image: $lw-icon-star; -webkit-mask-image: $lw-icon-star; }
+}
+
+// Visually hidden, still read by screen readers.
+.lw-sr-only {
+    position: absolute !important;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
 }
 
 .lw-course-card {
@@ -311,23 +327,26 @@ $lw-icon-star: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/s
         }
     }
 
-    // Bookmark: 40px slate-100 square with the 24px icon. Not rendered yet: cardHtml() adds
-    // it back once "My List" has a bookmark API. !important on the paint: the LMS global
-    // <button> styles (navy gradient fill, inset shadow, border, padding) otherwise win.
-    button.lw-course-card__bookmark {
+    // Actions menu (learner dashboard CourseCardMenu): "..." toggle next to the CTA and a
+    // small list that opens above it. !important on the paint: the LMS global <button>
+    // styles (navy gradient fill, inset shadow, border, padding) otherwise win.
+    &__menu {
+        position: relative;
+        flex: 0 0 auto;
+    }
+
+    button.lw-course-card__menu-toggle {
         display: inline-flex;
-        flex: 0 0 $lw-card-control-size;
         align-items: center;
         justify-content: center;
         box-sizing: border-box;
-        width: $lw-card-control-size;
-        min-width: 0;
-        height: $lw-card-control-size;
-        padding: 8px !important;
+        width: 44px;
+        height: 44px;
+        padding: 0 !important;
         margin: 0;
         border: 0 !important;
         border-radius: $lw-card-control-radius !important;
-        background: $lw-card-slate-100 !important;
+        background: transparent !important;
         box-shadow: none !important;
         text-shadow: none !important;
         line-height: 0;
@@ -335,14 +354,50 @@ $lw-icon-star: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/s
         cursor: pointer;
 
         &:hover,
-        &:focus,
-        &:active {
+        &[aria-expanded="true"] {
             background: $lw-card-slate-200 !important;
         }
 
         &:focus-visible {
             outline: 2px solid $lw-card-blue-600;
             outline-offset: 2px;
+        }
+    }
+
+    &__menu-list {
+        position: absolute;
+        right: 0;
+        bottom: calc(100% + 4px);
+        z-index: 10;
+        min-width: 180px;
+        padding: 4px 0;
+        margin: 0;
+        list-style: none;
+        border: 1px solid $lw-card-slate-200;
+        border-radius: $lw-card-control-radius;
+        background: #fff;
+        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
+    }
+
+    button.lw-course-card__menu-item {
+        @extend %lw-body-text;
+        display: block;
+        width: 100%;
+        padding: 8px 16px !important;
+        margin: 0;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        text-shadow: none !important;
+        text-align: left;
+        color: $lw-card-slate-800 !important;
+        cursor: pointer;
+
+        &:hover,
+        &:focus {
+            background: $lw-card-slate-100 !important;
+            outline: none;
         }
     }
 }
@@ -373,8 +428,20 @@ body.indigo-dark-theme .lw-course-card {
         color: $text-color-d;
     }
 
-    button.lw-course-card__bookmark {
-        background: $light-overlay-d !important;
+    button.lw-course-card__menu-toggle,
+    button.lw-course-card__menu-item {
         color: $text-color-d !important;
+    }
+
+    button.lw-course-card__menu-toggle:hover,
+    button.lw-course-card__menu-toggle[aria-expanded="true"],
+    button.lw-course-card__menu-item:hover,
+    button.lw-course-card__menu-item:focus {
+        background: $light-overlay-d !important;
+    }
+
+    &__menu-list {
+        border-color: $border-color-d;
+        background: $primary-light-d;
     }
 }

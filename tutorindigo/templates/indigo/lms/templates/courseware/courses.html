@@ -1,5 +1,6 @@
 <%page expression_filter="h"/>
 <%!
+  import json
   from django.conf import settings
   from django.utils.translation import gettext as _
   from openedx.core.djangolib.js_utils import js_escaped_string
@@ -8,6 +9,22 @@
 <%
   course_discovery_enabled = settings.FEATURES.get('ENABLE_COURSE_DISCOVERY')
   search_catalog_url = getattr(settings, 'SEARCH_CATALOG_URL', '/search')
+
+  ## Card "Share to Facebook / Twitter": the same settings the learner dashboard gets from its
+  ## init API (SOCIAL_SHARING_SETTINGS DASHBOARD_FACEBOOK / DASHBOARD_TWITTER, brand, UTM params).
+  ## Off by default; if edx-platform moves this helper, sharing just stays hidden.
+  try:
+    from lms.djangoapps.learner_home.views import get_social_share_settings
+    share_config = {
+      site: {
+        'isEnabled': bool(config.get('is_enabled')),
+        'socialBrand': config.get('brand') or settings.PLATFORM_NAME,
+        'utmParams': config.get('utm_params') or '',
+      }
+      for site, config in get_social_share_settings().items()
+    }
+  except Exception:
+    share_config = {}
 %>
 
 <%namespace name='static' file='../static_content.html'/>
@@ -16,6 +33,8 @@
   ## Course cards: byline / chips / badges use Google Sans Code (same id as the learner dashboard).
   <link id="lw-google-sans-code-fonts" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Google+Sans+Code:wght@400;700&display=swap" />
   <script type="text/javascript" src="${static.url('js/lw-course-cards.js')}"></script>
+  <script type="text/javascript" src="${static.url('js/lw-course-rating.js')}"></script>
+  <script type="text/javascript" src="${static.url('js/lw-course-unenroll.js')}"></script>
   <script type="text/javascript" src="${static.url('js/lw-courses-tabs.js')}"></script>
   % if course_discovery_enabled:
   ## Old /courses?search_query=… links (e.g. the homepage search form) go to the search page.
@@ -74,10 +93,11 @@
           </button>
         </div>
 
-        <h2 class="lw-courses-section-title" id="lw-courses-section-title">${_("Continue Learning")}</h2>
+        <h2 class="lw-courses-section-title" id="lw-courses-section-title" tabindex="-1">${_("Continue Learning")}</h2>
         <div class="course-holder courses lw-courses-library no-course-discovery" role="tabpanel"
              id="lw-courses-panel" aria-labelledby="lw-courses-section-title"
-             data-discover-url="${search_catalog_url}">
+             data-discover-url="${search_catalog_url}"
+             data-share-settings="${json.dumps(share_config)}">
           <div class="lw-courses-empty" data-lw-library="empty">
             <h3 class="lw-courses-empty__title" data-lw-empty="title">${_("No ongoing courses.")}</h3>
             <p class="lw-courses-empty__body" data-lw-empty="body">${_("Browse available courses to find what interests you!")}</p>
