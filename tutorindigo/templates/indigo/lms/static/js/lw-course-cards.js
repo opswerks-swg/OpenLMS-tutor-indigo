@@ -94,7 +94,7 @@
 
   /**
    * As dueDate.js buildCompletedDateById: the certificate's date, else completion
-   * completedAt (the earlier of reaching 100% and first passing).
+   * completedAt (the earlier of first passing and reaching 100% without failing).
    */
   function completedDate(courseId, completionById, certificateDateById) {
     if (certificateDateById[courseId]) { return certificateDateById[courseId]; }
@@ -145,13 +145,14 @@
 
   /**
    * Port of dueDate.js resolveDueInfo. Due date: the assignment's, then the course end date
-   * (enrolled learners only), else none. A course is completed once finished (100%, a
-   * certificate, or a recorded completedAt, which includes first passing) or when its
-   * assignment is marked completed; completed courses are never overdue or due soon.
+   * (enrolled learners only), else none. A course is completed once finished (a certificate,
+   * or the course-completion API's completedAt) or when its assignment is marked completed;
+   * completed courses are never overdue or due soon. 100% alone is not finished: a course
+   * that is 100% done but failed has no completedAt (completion_helpers.is_completed).
    */
   function resolveDueInfo(courseEnd, cardInfo, completion, completedOn, now) {
     var enrolled = completion !== undefined;
-    var finished = enrolled && (completion.completion >= 100 || Boolean(completedOn));
+    var finished = enrolled && Boolean(completedOn);
     var isCompleted = finished || Boolean(cardInfo && cardInfo.status === 'completed');
     var info = {
       dueDate: null,
