@@ -321,10 +321,11 @@
     show(field(card, 'score-badge'), hasScore);
 
     // Progress + CTA, as CourseCardProgress / CourseCardActions. A completed course shows no
-    // progress bar and a "Revisit Course" action instead; a failed one is not "In Progress".
+    // progress bar and a "Revisit Course" action instead; so does a failed one (not "In Progress").
     var isCompleted = Boolean(completion) && due.isCompleted;
-    var hasStarted = Boolean(completion) && completion.completion > 0 && !isCompleted;
-    var showProgress = hasStarted && !due.isFailed;
+    var isRevisit = isCompleted || (Boolean(completion) && due.isFailed);
+    var hasStarted = Boolean(completion) && completion.completion > 0 && !isRevisit;
+    var showProgress = hasStarted;
     if (showProgress) {
       var percent = Math.max(0, Math.min(100, Math.round(completion.completion)));
       field(card, 'progress-value').textContent = percent + '%';
@@ -339,14 +340,14 @@
       // PRD LMS 5.2: for an enrolled learner, the card opens the course player, not the about page.
       field(card, 'title-link').setAttribute('href', coursewareUrl);
       var ctaLabel = gettext('Enroll and Start');
-      if (isCompleted) {
+      if (isRevisit) {
         ctaLabel = gettext('Revisit Course');
       } else if (hasStarted) {
         ctaLabel = gettext('Resume');
       }
       field(card, 'cta-label').textContent = ctaLabel;
     }
-    field(card, 'cta').classList.toggle('lw-course-card__cta--revisit', isCompleted);
+    field(card, 'cta').classList.toggle('lw-course-card__cta--revisit', isRevisit);
     show(field(card, 'cta-icon'), hasStarted);
     // Card info only loads for signed-in learners; the rating API only accepts enrolled
     // ones (CourseCardMenu useOptionVisibility).
