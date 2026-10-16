@@ -8,7 +8,10 @@
 <%inherit file="../main.html" />
 <%
   course_discovery_enabled = settings.FEATURES.get('ENABLE_COURSE_DISCOVERY')
-  search_catalog_url = getattr(settings, 'SEARCH_CATALOG_URL', '/search')
+  search_catalog_url = getattr(settings, 'SEARCH_CATALOG_URL', '/search') or '/search'
+  ## Only http(s) or a site path ("/search"): escaping does not stop a javascript: URL in an href.
+  if not search_catalog_url.lower().startswith(('https://', 'http://', '/')) or search_catalog_url.startswith('//'):
+    search_catalog_url = '/search'
 
   ## Card "Share to Facebook / Twitter": the same settings the learner dashboard gets from its
   ## init API (SOCIAL_SHARING_SETTINGS DASHBOARD_FACEBOOK / DASHBOARD_TWITTER, brand, UTM params).

@@ -74,6 +74,16 @@
   };
 
   // Safe in text and in quoted attributes (cardHtml puts API fields in both).
+  // An href from page data: only http(s) URLs (absolute or relative), never javascript: or data:.
+  function safeHref(value, fallback) {
+    if (!value) { return fallback; }
+    try {
+      var url = new URL(value, window.location.origin);
+      if (url.protocol === 'https:' || url.protocol === 'http:') { return url.href; }
+    } catch (e) { /* not a URL */ }
+    return fallback;
+  }
+
   function escapeHtml(value) {
     return (value == null ? '' : String(value)).replace(/[&<>"']/g, function (ch) {
       return HTML_ESCAPES[ch];
@@ -326,7 +336,7 @@
     if (titleEl) { titleEl.textContent = config.title; }
     if (bodyEl) { bodyEl.textContent = config.body; }
     if (ctaEl) {
-      var discoverUrl = (holder && holder.getAttribute('data-discover-url')) || '/search';
+      var discoverUrl = safeHref(holder && holder.getAttribute('data-discover-url'), '/search');
       ctaEl.setAttribute('href', discoverUrl);
       ctaEl.hidden = !config.showDiscoverCta;
     }
