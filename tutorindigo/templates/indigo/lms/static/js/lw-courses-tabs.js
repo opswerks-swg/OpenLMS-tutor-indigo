@@ -162,12 +162,11 @@
     var aboutUrl = escapeHtml(row.url || ('/courses/' + row.courseId + '/about'));
     var org = escapeHtml(row.org || '');
     var description = row.shortDescription ? '<p class="lw-course-card__description">' + escapeHtml(row.shortDescription) + '</p>' : '';
-    var courseEnd = escapeHtml(row.courseEnd || '');
     var providerLabel = interpolate(gettext('By %(provider_name)s'), { provider_name: org }, true);
 
     return (
       '<article class="lw-course-card" aria-label="' + title + '"'
-      + ' data-course-id="' + courseId + '" data-course-end="' + courseEnd + '">'
+      + ' data-course-id="' + courseId + '">'
       + '<div class="lw-course-card__image">'
       + '<img src="' + imageUrl + '" alt="" decoding="async"'
       + ' loading="' + (index < EAGER_IMAGES ? 'eager' : 'lazy') + '"'

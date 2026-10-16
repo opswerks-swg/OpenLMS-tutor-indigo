@@ -144,16 +144,16 @@
   }
 
   /**
-   * Port of dueDate.js resolveDueInfo. Due date: the assignment's, then the course end date
-   * (enrolled learners only), else none. A course is completed once finished (a certificate,
+   * Port of dueDate.js resolveDueInfo. Due date: the assignment's, else none. Overdue and due
+   * soon need an assignment (spec: "an assignment record exists with a due_date in the past");
+   * a course's end date alone never makes it overdue. A course is completed once finished (a certificate,
    * or the course-completion API's completedAt) or when its assignment is marked completed;
    * completed courses are never overdue or due soon. 100% alone is not finished: a course
    * that is 100% done but failed has no completedAt and comes back with failed: true
    * (completion_helpers.is_completed / is_failed).
    */
-  function resolveDueInfo(courseEnd, cardInfo, completion, completedOn, now) {
-    var enrolled = completion !== undefined;
-    var finished = enrolled && Boolean(completedOn);
+  function resolveDueInfo(cardInfo, completion, completedOn, now) {
+    var finished = completion !== undefined && Boolean(completedOn);
     var isCompleted = finished || Boolean(cardInfo && cardInfo.status === 'completed');
     var info = {
       dueDate: null,
@@ -176,12 +176,6 @@
       info.daysOverdue = info.isOverdue ? Math.max(1, -info.daysUntilDue) : 0;
       info.isDueSoon = !info.isOverdue && !isCompleted
         && info.daysUntilDue >= 0 && info.daysUntilDue <= DUE_SOON_WINDOW_DAYS;
-    } else if (enrolled && courseEnd) {
-      info.dueDate = parseDateOnly(courseEnd);
-      info.daysUntilDue = daysUntil(info.dueDate, now);
-      info.isOverdue = info.daysUntilDue < 0 && !finished;
-      info.daysOverdue = info.isOverdue ? -info.daysUntilDue : 0;
-      info.isDueSoon = !finished && info.daysUntilDue >= 0 && info.daysUntilDue <= DUE_SOON_WINDOW_DAYS;
     }
     return info;
   }
@@ -294,7 +288,6 @@
     renderRating(card, cardInfo);
 
     var due = resolveDueInfo(
-      card.getAttribute('data-course-end'),
       cardInfo,
       completion,
       completedDate(courseId, completionById, certificateDateById),
@@ -355,7 +348,9 @@
     show(field(card, 'rate-item'), Boolean(completion));
     // The learner dashboard also hides Unenroll once a certificate is earned; /courses has no
     // certificate data, so the LMS refuses that case and the dialog shows its error.
-    show(field(card, 'unenroll-item'), Boolean(completion));
+    // An assigned course is an obligation: it leaves Assigned only when completed or revoked by
+    // an admin (Learning Library spec), so the learner can't unenroll from it.
+    show(field(card, 'unenroll-item'), Boolean(completion) && !(cardInfo && cardInfo.due_date));
     Object.keys(SHARE_SITES).forEach(function (site) {
       show(field(card, 'share-' + site + '-item'), Boolean(shareSettings()[site] && shareSettings()[site].isEnabled));
     });
