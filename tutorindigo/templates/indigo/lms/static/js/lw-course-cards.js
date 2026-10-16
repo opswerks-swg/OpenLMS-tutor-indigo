@@ -148,7 +148,8 @@
    * (enrolled learners only), else none. A course is completed once finished (a certificate,
    * or the course-completion API's completedAt) or when its assignment is marked completed;
    * completed courses are never overdue or due soon. 100% alone is not finished: a course
-   * that is 100% done but failed has no completedAt (completion_helpers.is_completed).
+   * that is 100% done but failed has no completedAt and comes back with failed: true
+   * (completion_helpers.is_completed / is_failed).
    */
   function resolveDueInfo(courseEnd, cardInfo, completion, completedOn, now) {
     var enrolled = completion !== undefined;
@@ -162,13 +163,15 @@
       isDueSoon: false,
       isCompleted: isCompleted,
       completedDate: isCompleted ? completedOn : null,
+      isFailed: Boolean(completion && completion.failed) && !isCompleted,
     };
 
     if (cardInfo && cardInfo.due_date) {
       info.dueDate = parseDateOnly(cardInfo.due_date);
       info.daysUntilDue = daysUntil(info.dueDate, now);
-      // The API owns overdue for assignments (it already excludes status=completed).
-      info.isOverdue = Boolean(cardInfo.is_overdue);
+      // The API owns overdue for assignments, but only skips a stored status=completed; nothing
+      // updates that status when the learner passes, so a finished course is never overdue here.
+      info.isOverdue = Boolean(cardInfo.is_overdue) && !isCompleted;
       // Server and browser can disagree on "today" near midnight; never "0 days overdue".
       info.daysOverdue = info.isOverdue ? Math.max(1, -info.daysUntilDue) : 0;
       info.isDueSoon = !info.isOverdue && !isCompleted
@@ -183,8 +186,10 @@
     return info;
   }
 
-  // As CourseCardImage useStatusBadge: completed wins over overdue / due soon.
-  function statusBadge(due) {
+  // As CourseCardImage useStatusBadge: completed wins over overdue / due soon. Failed comes
+  // after overdue (spec precedence: Overdue > Failed); hideFailed skips it where the Assigned
+  // tab's "Failed" chip already says so.
+  function statusBadge(due, hideFailed) {
     if (due.isCompleted) {
       return {
         variant: 'completed',
@@ -201,6 +206,9 @@
           { days: due.daysOverdue, due_date: formatShortDate(due.dueDate) }
         ),
       };
+    }
+    if (due.isFailed) {
+      return hideFailed ? null : { variant: 'failed', label: gettext('Failed') };
     }
     if (due.isDueSoon) {
       var template = due.daysUntilDue === 0
@@ -292,7 +300,7 @@
       completedDate(courseId, completionById, certificateDateById),
       now
     );
-    var status = statusBadge(due);
+    var status = statusBadge(due, Boolean(card.querySelector('.lw-course-card__chip--failed')));
     var badge = field(card, 'badge');
     badge.className = 'lw-course-card__badge';
     if (status) {
@@ -313,16 +321,17 @@
     show(field(card, 'score-badge'), hasScore);
 
     // Progress + CTA, as CourseCardProgress / CourseCardActions. A completed course shows no
-    // progress bar and a "Revisit Course" action instead.
+    // progress bar and a "Revisit Course" action instead; a failed one is not "In Progress".
     var isCompleted = Boolean(completion) && due.isCompleted;
     var hasStarted = Boolean(completion) && completion.completion > 0 && !isCompleted;
-    if (hasStarted) {
+    var showProgress = hasStarted && !due.isFailed;
+    if (showProgress) {
       var percent = Math.max(0, Math.min(100, Math.round(completion.completion)));
       field(card, 'progress-value').textContent = percent + '%';
       field(card, 'progress-bar').style.width = percent + '%';
       field(card, 'progress-track').setAttribute('aria-valuenow', String(percent));
     }
-    show(field(card, 'progress'), hasStarted);
+    show(field(card, 'progress'), showProgress);
 
     if (completion) {
       var coursewareUrl = '/courses/' + encodeURIComponent(courseId) + '/courseware';

@@ -157,7 +157,8 @@ $lw-icon-star: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/s
         text-overflow: ellipsis;
         white-space: nowrap;
 
-        &--overdue { background-color: $lw-card-badge-overdue-bg; color: $lw-card-badge-overdue-text; }
+        &--overdue,
+        &--failed { background-color: $lw-card-badge-overdue-bg; color: $lw-card-badge-overdue-text; }
         &--due-soon { background-color: $lw-card-badge-due-soon-bg; color: $lw-card-badge-due-soon-text; }
         &--completed { background-color: $lw-card-badge-completed-bg; color: $lw-card-badge-completed-text; }
     }
