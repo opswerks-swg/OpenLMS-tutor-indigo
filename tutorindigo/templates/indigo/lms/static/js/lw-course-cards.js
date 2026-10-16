@@ -94,7 +94,7 @@
 
   /**
    * As dueDate.js buildCompletedDateById: the certificate's date, else completion
-   * completedAt (the earlier of reaching 100% and first passing).
+   * completedAt (the earlier of first passing and reaching 100% without failing).
    */
   function completedDate(courseId, completionById, certificateDateById) {
     if (certificateDateById[courseId]) { return certificateDateById[courseId]; }
@@ -144,14 +144,16 @@
   }
 
   /**
-   * Port of dueDate.js resolveDueInfo. Due date: the assignment's, then the course end date
-   * (enrolled learners only), else none. A course is completed once finished (100%, a
-   * certificate, or a recorded completedAt, which includes first passing) or when its
-   * assignment is marked completed; completed courses are never overdue or due soon.
+   * Port of dueDate.js resolveDueInfo. Due date: the assignment's, else none. Overdue and due
+   * soon need an assignment (spec: "an assignment record exists with a due_date in the past");
+   * a course's end date alone never makes it overdue. A course is completed once finished (a certificate,
+   * or the course-completion API's completedAt) or when its assignment is marked completed;
+   * completed courses are never overdue or due soon. 100% alone is not finished: a course
+   * that is 100% done but failed has no completedAt and comes back with failed: true
+   * (completion_helpers.is_completed / is_failed).
    */
-  function resolveDueInfo(courseEnd, cardInfo, completion, completedOn, now) {
-    var enrolled = completion !== undefined;
-    var finished = enrolled && (completion.completion >= 100 || Boolean(completedOn));
+  function resolveDueInfo(cardInfo, completion, completedOn, now) {
+    var finished = completion !== undefined && Boolean(completedOn);
     var isCompleted = finished || Boolean(cardInfo && cardInfo.status === 'completed');
     var info = {
       dueDate: null,
@@ -161,29 +163,27 @@
       isDueSoon: false,
       isCompleted: isCompleted,
       completedDate: isCompleted ? completedOn : null,
+      isFailed: Boolean(completion && completion.failed) && !isCompleted,
     };
 
     if (cardInfo && cardInfo.due_date) {
       info.dueDate = parseDateOnly(cardInfo.due_date);
       info.daysUntilDue = daysUntil(info.dueDate, now);
-      // The API owns overdue for assignments (it already excludes status=completed).
-      info.isOverdue = Boolean(cardInfo.is_overdue);
+      // The API owns overdue for assignments, but only skips a stored status=completed; nothing
+      // updates that status when the learner passes, so a finished course is never overdue here.
+      info.isOverdue = Boolean(cardInfo.is_overdue) && !isCompleted;
       // Server and browser can disagree on "today" near midnight; never "0 days overdue".
       info.daysOverdue = info.isOverdue ? Math.max(1, -info.daysUntilDue) : 0;
       info.isDueSoon = !info.isOverdue && !isCompleted
         && info.daysUntilDue >= 0 && info.daysUntilDue <= DUE_SOON_WINDOW_DAYS;
-    } else if (enrolled && courseEnd) {
-      info.dueDate = parseDateOnly(courseEnd);
-      info.daysUntilDue = daysUntil(info.dueDate, now);
-      info.isOverdue = info.daysUntilDue < 0 && !finished;
-      info.daysOverdue = info.isOverdue ? -info.daysUntilDue : 0;
-      info.isDueSoon = !finished && info.daysUntilDue >= 0 && info.daysUntilDue <= DUE_SOON_WINDOW_DAYS;
     }
     return info;
   }
 
-  // As CourseCardImage useStatusBadge: completed wins over overdue / due soon.
-  function statusBadge(due) {
+  // As CourseCardImage useStatusBadge: completed wins over overdue / due soon. Failed comes
+  // after overdue (spec precedence: Overdue > Failed); hideFailed skips it where the Assigned
+  // tab's "Failed" chip already says so.
+  function statusBadge(due, hideFailed) {
     if (due.isCompleted) {
       return {
         variant: 'completed',
@@ -200,6 +200,9 @@
           { days: due.daysOverdue, due_date: formatShortDate(due.dueDate) }
         ),
       };
+    }
+    if (due.isFailed) {
+      return hideFailed ? null : { variant: 'failed', label: gettext('Failed') };
     }
     if (due.isDueSoon) {
       var template = due.daysUntilDue === 0
@@ -285,13 +288,12 @@
     renderRating(card, cardInfo);
 
     var due = resolveDueInfo(
-      card.getAttribute('data-course-end'),
       cardInfo,
       completion,
       completedDate(courseId, completionById, certificateDateById),
       now
     );
-    var status = statusBadge(due);
+    var status = statusBadge(due, Boolean(card.querySelector('.lw-course-card__chip--failed')));
     var badge = field(card, 'badge');
     badge.className = 'lw-course-card__badge';
     if (status) {
@@ -302,20 +304,43 @@
     }
     show(badge, Boolean(status));
 
-    // Progress + CTA, as CourseCardProgress / CourseCardActions
-    var hasStarted = Boolean(completion) && completion.completion > 0;
-    if (hasStarted) {
+    // Under "Completed - date": the learner's course grade, e.g. "Scored 87%" (course-completion
+    // API score). Hidden without a grade, or at 0% (ungraded courses).
+    var score = due.isCompleted && completion ? Number(completion.score) : NaN;
+    var hasScore = isFinite(score) && score > 0;
+    if (hasScore) {
+      field(card, 'score-badge').textContent = interpolate(gettext('Scored %(score)s'), { score: score + '%' });
+    }
+    show(field(card, 'score-badge'), hasScore);
+
+    // Progress + CTA, as CourseCardProgress / CourseCardActions. A completed course shows no
+    // progress bar and a "Revisit Course" action instead; so does a failed one (not "In Progress").
+    var isCompleted = Boolean(completion) && due.isCompleted;
+    var isRevisit = isCompleted || (Boolean(completion) && due.isFailed);
+    var hasStarted = Boolean(completion) && completion.completion > 0 && !isRevisit;
+    var showProgress = hasStarted;
+    if (showProgress) {
       var percent = Math.max(0, Math.min(100, Math.round(completion.completion)));
       field(card, 'progress-value').textContent = percent + '%';
       field(card, 'progress-bar').style.width = percent + '%';
       field(card, 'progress-track').setAttribute('aria-valuenow', String(percent));
     }
-    show(field(card, 'progress'), hasStarted);
+    show(field(card, 'progress'), showProgress);
 
     if (completion) {
-      field(card, 'cta').setAttribute('href', '/courses/' + encodeURIComponent(courseId) + '/courseware');
-      field(card, 'cta-label').textContent = hasStarted ? gettext('Resume') : gettext('Enroll and Start');
+      var coursewareUrl = '/courses/' + encodeURIComponent(courseId) + '/courseware';
+      field(card, 'cta').setAttribute('href', coursewareUrl);
+      // PRD LMS 5.2: for an enrolled learner, the card opens the course player, not the about page.
+      field(card, 'title-link').setAttribute('href', coursewareUrl);
+      var ctaLabel = gettext('Enroll and Start');
+      if (isRevisit) {
+        ctaLabel = gettext('Revisit Course');
+      } else if (hasStarted) {
+        ctaLabel = gettext('Resume');
+      }
+      field(card, 'cta-label').textContent = ctaLabel;
     }
+    field(card, 'cta').classList.toggle('lw-course-card__cta--revisit', isRevisit);
     show(field(card, 'cta-icon'), hasStarted);
     // Card info only loads for signed-in learners; the rating API only accepts enrolled
     // ones (CourseCardMenu useOptionVisibility).
@@ -323,7 +348,9 @@
     show(field(card, 'rate-item'), Boolean(completion));
     // The learner dashboard also hides Unenroll once a certificate is earned; /courses has no
     // certificate data, so the LMS refuses that case and the dialog shows its error.
-    show(field(card, 'unenroll-item'), Boolean(completion));
+    // An assigned course is an obligation: it leaves Assigned only when completed or revoked by
+    // an admin (Learning Library spec), so the learner can't unenroll from it.
+    show(field(card, 'unenroll-item'), Boolean(completion) && !(cardInfo && cardInfo.due_date));
     Object.keys(SHARE_SITES).forEach(function (site) {
       show(field(card, 'share-' + site + '-item'), Boolean(shareSettings()[site] && shareSettings()[site].isEnabled));
     });
@@ -336,16 +363,18 @@
       : gettext('Add to my list');
   }
 
+  // Resolves once the cards are filled in, so lw-courses-tabs.js can build them off-screen and
+  // show them complete. Never rejects (the lookups resolve null/{} on failure).
   function enhance(root) {
     var cards = Array.prototype.filter.call(
       root.querySelectorAll('.lw-course-card[data-course-id]'),
       function (card) { return !card.hasAttribute('data-lw-ready'); }
     );
-    if (!cards.length) { return; }
+    if (!cards.length) { return Promise.resolve(); }
     cards.forEach(function (card) { card.setAttribute('data-lw-ready', ''); });
 
     var ids = cards.map(function (card) { return card.getAttribute('data-course-id'); });
-    Promise.all([getCompletionById(), loadCardInfo(ids), getCertificateDateById()]).then(function (results) {
+    return Promise.all([getCompletionById(), loadCardInfo(ids), getCertificateDateById()]).then(function (results) {
       var now = Date.now();
       cards.forEach(function (card) { renderCard(card, results[0], results[1], results[2], now); });
     });

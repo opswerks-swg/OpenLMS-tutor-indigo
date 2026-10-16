@@ -426,10 +426,6 @@ $lw-icon-book-open: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2
         }
     }
 
-    &--loading .courses-listing {
-        opacity: 0.55;
-        pointer-events: none;
-    }
 }
 
 .find-courses .courses-container {
@@ -476,8 +472,10 @@ $lw-icon-book-open: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2
 }
 
 // Homepage course list (edx-platform courses_list.html inside index.html's section.home),
-// cards from templates/course.html. Unchanged from release; scoped so it never reaches /courses.
-.home .courses-container {
+// cards from templates/course.html, and the /search results (same markup, _search.scss).
+// Unchanged from release; scoped so it never reaches /courses.
+.home .courses-container,
+body.search .courses-container {
     .courses {
         .courses-listing {
             letter-spacing: -.32em;
@@ -679,7 +677,8 @@ body.indigo-dark-theme {
             }
         }
     }
-    .home .courses-container {
+    .home .courses-container,
+    &.search .courses-container {
         .courses {
             .courses-listing {
                 li {
