@@ -10,6 +10,7 @@
   var DEFAULT_NOTIFICATION_APP = 'assignments';
   var LEGACY_NOTIFICATION_APP = 'discussion';
   var PAGE_SIZE = 10;
+  var COUNT_REFRESH_MS = 60000;
 
   var STR = {
     assignedTitle: 'New Course Assigned',
@@ -44,6 +45,8 @@
   var root = document.getElementById('lw-notifications-root');
   var bell = document.getElementById('lw-notification-bell');
   var drawerCount = document.getElementById('lw-notifications-drawer-count');
+  var bellBadge = document.getElementById('lw-notification-bell-badge');
+  var bellLabel = bell ? bell.getAttribute('aria-label') : '';
   var backdrop = document.getElementById('lw-notifications-backdrop');
   var drawer = document.getElementById('lw-notifications-drawer');
   var closeBtn = document.getElementById('lw-notifications-close');
@@ -391,8 +394,26 @@
     }
   }
 
+  // Corner badge on the bell: hidden at 0, otherwise the unread count (99+ cap).
+  function updateBellBadge(count) {
+    var safeCount = typeof count === 'number' && count >= 0 ? count : 0;
+    var unreadLabel = bell.getAttribute('data-unread-label');
+    if (safeCount > 0 && unreadLabel) {
+      bell.setAttribute('aria-label', unreadLabel.replace('{count}', String(safeCount)));
+    } else {
+      bell.setAttribute('aria-label', bellLabel);
+    }
+    if (!bellBadge) {
+      return;
+    }
+    bellBadge.textContent = safeCount >= 100 ? '99+' : String(safeCount);
+    bellBadge.classList.toggle('lw-notification-badge--hidden', safeCount === 0);
+    bellBadge.classList.toggle('lw-notification-badge--wide', safeCount >= 10);
+  }
+
   function updateBadges(count) {
     updateCountBadge(drawerCount, count);
+    updateBellBadge(count);
   }
 
   function mountDrawerPortal() {
@@ -790,4 +811,13 @@
   fetchCounts().catch(function () {
     // Notifications API unavailable: keep the bell visible but inert.
   });
+
+  // Keep the badge fresh on long-lived pages, so a new assignment shows within a minute.
+  function refreshCounts() {
+    if (document.visibilityState === 'visible') {
+      fetchCounts().catch(function () {});
+    }
+  }
+  window.setInterval(refreshCounts, COUNT_REFRESH_MS);
+  document.addEventListener('visibilitychange', refreshCounts);
 })();
