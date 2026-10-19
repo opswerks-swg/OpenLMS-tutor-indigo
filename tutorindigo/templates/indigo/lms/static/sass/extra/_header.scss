@@ -511,7 +511,8 @@ header.global-header {
             font-size: 10px;
             font-weight: 600;
             font-variant-numeric: lining-nums tabular-nums;
-            background: $primary;
+            // Red unread count (Figma), same as the drawer's count badge.
+            background: #DC2626;
             color: #fff;
             line-height: 20px;
             min-width: 20px;
@@ -820,8 +821,8 @@ body.indigo-dark-theme {
 
             .lw-notification-badge {
                 border-color: $body-bg-d;
-                background: $primary-d !important;
-                color: $btn-color-d;
+                background: #DC2626 !important;
+                color: #fff;
             }
 
             .lw-avatar-btn {
