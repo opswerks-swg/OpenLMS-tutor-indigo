@@ -20,7 +20,7 @@
     badgeEarned: 'You earned the %s badge. View it on your profile.',
     certificateAvailable: 'Your certificate is available on your profile.',
     loading: 'Loading…',
-    loadMore: 'Load more notifications',
+    loadMore: 'Load more',
     emptyTitle: 'No notifications yet',
     emptyHelp: 'When you receive notifications they\u2019ll show up here',
     unreadLabel: 'Unread notification',
@@ -762,7 +762,15 @@
     }
 
     listState.isFetching = true;
-    setLoading(true);
+    // Loading the next page keeps the button in place (disabled) so the list does not jump.
+    var pendingBtn = reset ? null : listState.loadMoreBtn;
+    if (pendingBtn) {
+      pendingBtn.disabled = true;
+      pendingBtn.setAttribute('aria-busy', 'true');
+      pendingBtn.textContent = STR.loading;
+    } else {
+      setLoading(true);
+    }
 
     var nextPage = reset ? 1 : listState.currentPage + 1;
 
@@ -789,6 +797,12 @@
       .then(function () {
         listState.isFetching = false;
         setLoading(false);
+        // A successful load re-renders a fresh button; restore the old one only if the fetch failed.
+        if (pendingBtn && pendingBtn === listState.loadMoreBtn) {
+          pendingBtn.disabled = false;
+          pendingBtn.removeAttribute('aria-busy');
+          pendingBtn.textContent = STR.loadMore;
+        }
       });
   }
 
