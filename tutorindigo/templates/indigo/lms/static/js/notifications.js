@@ -134,6 +134,7 @@
     isDrawerOpen: false,
     closeTimer: null,
     csrfToken: null,
+    urlParamsApplied: false,
   };
 
   var listState = {
@@ -867,17 +868,27 @@
       state.tabsCount = Object.assign({ count: data.count || 0 }, countByApp);
       state.showNotificationsTray = !!data.show_notifications_tray;
 
-      var params = new URLSearchParams(window.location.search);
-      state.appName = resolveDefaultAppName(appsId, params.get('app'));
-
       if (state.showNotificationsTray) {
         updateBadges(state.tabsCount.count);
       }
 
-      if (params.get('showNotifications') === 'true' && state.showNotificationsTray) {
-        openDrawer();
+      if (!state.urlParamsApplied) {
+        state.urlParamsApplied = true;
+        applyUrlParams(appsId);
       }
     });
+  }
+
+  // The ?app= and ?showNotifications= deep-link params, applied once on the first successful
+  // count fetch (as the MFE plugin does). fetchCounts() also runs on every refresh, card click
+  // and mark-all, which must not reset the tab or reopen (and reload) the drawer.
+  function applyUrlParams(appsId) {
+    var params = new URLSearchParams(window.location.search);
+    state.appName = resolveDefaultAppName(appsId, params.get('app'));
+
+    if (params.get('showNotifications') === 'true' && state.showNotificationsTray) {
+      openDrawer();
+    }
   }
 
   bell.addEventListener('click', toggleDrawer);
