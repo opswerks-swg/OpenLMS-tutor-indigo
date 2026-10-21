@@ -42,7 +42,10 @@
     },
   };
 
-  var PAGE_SIZE = 20;
+  // The library is one horizontal scroll row, so every page is fetched. The API caps page_size
+  // at 50 (library_helpers.MAX_PAGE_SIZE); MAX_PAGES bounds the loop if `next` never clears.
+  var PAGE_SIZE = 50;
+  var MAX_PAGES = 20;
 
   // Loading (no flicker): responses are cached briefly and prefetched when a tab is hovered or
   // focused; cards are built and filled in off-screen, then swapped in at once. The skeleton
@@ -58,15 +61,16 @@
 
   var state = {
     tab: 'continue',
-    page: 1,
     // Incremented per fetch; only the newest response may render (see fetchTab).
     requestId: 0,
     // performance.now() when the skeleton went up, or null while it is down.
     skeletonShownAt: null,
+    // scrollLeft saved when the skeleton replaces the cards, restored on a same-tab refresh.
+    savedScroll: null,
     skeletonTimer: null,
   };
 
-  // url -> { at, promise } (see loadTab).
+  // tab -> { at, promise } (see loadTab).
   var responseCache = {};
 
   var HTML_ESCAPES = {
@@ -106,25 +110,88 @@
       + '&page_size=' + PAGE_SIZE;
   }
 
+  // Every page of a tab, merged into one response: { results, count }. Page 1 gives the count;
+  // the remaining pages then load in parallel, and a page that fails is skipped (the rows that
+  // did load still show) rather than failing the whole tab. Some tabs (continue, suggested)
+  // ignore `page` server-side and always return page 1, so a page whose echoed number differs
+  // is dropped, as are rows already seen. Without a count, pages are followed one at a time
+  // through `next`.
+  function loadAllPages(tab) {
+    var results = [];
+    var seen = {};
+    function merge(data, page) {
+      var echoed = Number(data && data.page);
+      if (!data || !Array.isArray(data.results) || (echoed && echoed !== page)) { return 0; }
+      var fresh = data.results.filter(function (row) {
+        if (seen[row.courseId]) { return false; }
+        seen[row.courseId] = true;
+        return true;
+      });
+      results = results.concat(fresh);
+      return fresh.length;
+    }
+    function sequential(page) {
+      return getJson(tabUrl(tab, page)).then(function (data) {
+        return merge(data, page) && data.next && page < MAX_PAGES ? sequential(page + 1) : null;
+      }, function () { return null; });
+    }
+    return firstPage(tab).then(function (first) {
+      merge(first, 1);
+      var count = Number(first.count) || 0;
+      var size = Number(first.pageSize) || PAGE_SIZE;
+      var total = Math.min(MAX_PAGES, Math.ceil(count / size));
+      var rest;
+      if (count <= 0) {
+        rest = first.next ? sequential(2) : Promise.resolve();
+      } else {
+        var requests = [];
+        for (var page = 2; page <= total; page += 1) {
+          requests.push(getJson(tabUrl(tab, page)).then(
+            (function (n) { return function (data) { merge(data, n); }; }(page)),
+            function () { /* keep the pages that loaded */ }
+          ));
+        }
+        rest = Promise.all(requests);
+      }
+      return rest.then(function () {
+        return { results: results };
+      });
+    });
+  }
+
   // Cached for CACHE_TTL_MS; a failed request is dropped so the next try refetches.
-  function loadTab(tab, page) {
-    var url = tabUrl(tab, page);
-    var entry = responseCache[url];
+  function loadTab(tab) {
+    var entry = responseCache[tab];
     if (entry && Date.now() - entry.at < CACHE_TTL_MS) { return entry.promise; }
-    var promise = getJson(url);
-    responseCache[url] = { at: Date.now(), promise: promise };
+    var promise = loadAllPages(tab);
+    responseCache[tab] = { at: Date.now(), promise: promise };
     promise.catch(function () {
-      if (responseCache[url] && responseCache[url].promise === promise) { delete responseCache[url]; }
+      if (responseCache[tab] && responseCache[tab].promise === promise) { delete responseCache[tab]; }
+    });
+    return promise;
+  }
+
+  // Page 1 of a tab, cached for CACHE_TTL_MS. Hover / focus prefetch warms only this (not the
+  // whole crawl), and loadAllPages starts from it, so a prefetch is never wasted.
+  var firstPages = {};
+  function firstPage(tab) {
+    var entry = firstPages[tab];
+    if (entry && Date.now() - entry.at < CACHE_TTL_MS) { return entry.promise; }
+    var promise = getJson(tabUrl(tab, 1));
+    firstPages[tab] = { at: Date.now(), promise: promise };
+    promise.catch(function () {
+      if (firstPages[tab] && firstPages[tab].promise === promise) { delete firstPages[tab]; }
     });
     return promise;
   }
 
   function prefetchTab(tab) {
-    if (VALID_TABS.indexOf(tab) >= 0) { loadTab(tab, 1).catch(function () {}); }
+    if (VALID_TABS.indexOf(tab) >= 0) { firstPage(tab).catch(function () {}); }
   }
 
   function clearCache() {
     responseCache = {};
+    firstPages = {};
   }
 
   function tabFromQuery() {
@@ -250,8 +317,9 @@
   function enhanceCards(root) {
     if (typeof window.lwCourseCardsEnhance !== 'function') { return Promise.resolve(); }
     var enhanced = Promise.resolve(window.lwCourseCardsEnhance(root)).catch(function () {});
-    var timeout = new Promise(function (resolve) { window.setTimeout(resolve, ENHANCE_TIMEOUT_MS); });
-    return Promise.race([enhanced, timeout]);
+    var timer;
+    var timeout = new Promise(function (resolve) { timer = window.setTimeout(resolve, ENHANCE_TIMEOUT_MS); });
+    return Promise.race([enhanced, timeout]).then(function () { window.clearTimeout(timer); });
   }
 
   function commitList(staged) {
@@ -277,14 +345,21 @@
     return html;
   }
 
+  function navEl() {
+    return document.querySelector('[data-lw-library="nav"]');
+  }
+
   function showSkeleton(tab) {
     var list = document.getElementById('lw-courses-listing');
     if (!list) { return; }
     setEmptyState(tab, false);
     setMessage('', false);
-    renderPagination(null, 0);
+    // Remember the place in the row: the skeleton is shorter, so the browser clamps scrollLeft.
+    state.savedScroll = list.scrollLeft;
     list.innerHTML = skeletonHtml();
     state.skeletonShownAt = performance.now();
+    var nav = navEl();
+    if (nav) { nav.hidden = true; }
   }
 
   // Waits out SKELETON_MIN_MS when the skeleton is up, so it never just blinks.
@@ -356,65 +431,306 @@
     }
   }
 
-  // Page numbers to render: all when few, else first/last + a window around the current page.
-  function pageItems(current, total) {
-    if (total <= 7) {
-      var all = [];
-      for (var n = 1; n <= total; n += 1) { all.push(n); }
-      return all;
-    }
-    var items = [1];
-    var start = Math.max(2, current - 1);
-    var end = Math.min(total - 1, current + 1);
-    if (start > 2) { items.push(null); }
-    for (var i = start; i <= end; i += 1) { items.push(i); }
-    if (end < total - 1) { items.push(null); }
-    items.push(total);
-    return items;
+  // Prev / next buttons (the scrollbar is hidden). Shown only when the row overflows; each
+  // click moves one card, which is where the scroll-snap points are.
+  function updateNav() {
+    var list = document.getElementById('lw-courses-listing');
+    var nav = navEl();
+    if (!list || !nav) { return; }
+    var maxScroll = list.scrollWidth - list.clientWidth;
+    nav.hidden = maxScroll <= 1;
+    var prev = nav.querySelector('[data-lw-nav="prev"]');
+    var next = nav.querySelector('[data-lw-nav="next"]');
+    // aria-disabled, not disabled: a disabled button that has focus drops it to <body>.
+    if (prev) { prev.setAttribute('aria-disabled', list.scrollLeft <= 1 ? 'true' : 'false'); }
+    if (next) { next.setAttribute('aria-disabled', list.scrollLeft >= maxScroll - 1 ? 'true' : 'false'); }
   }
 
-  // Always shown when the tab has results (a lone "1" on single-page tabs, Figma pager).
-  function renderPagination(data, shownCount) {
-    var holder = document.querySelector('[data-lw-library="pagination"]');
-    if (!holder) { return; }
-    if (!data || !shownCount) {
-      holder.hidden = true;
-      return;
+  // The centre column in viewport coordinates: the row minus its side padding, where the
+  // full-opacity cards are. Read from the padding (the CSS --lw-edge is a calc() that
+  // getComputedStyle does not resolve to a number).
+  function columnBox(list) {
+    var cs = window.getComputedStyle(list);
+    var box = list.getBoundingClientRect();
+    var left = box.left + (parseFloat(cs.paddingLeft) || 0);
+    var right = box.right - (parseFloat(cs.paddingRight) || 0);
+    return { left: left, right: right, width: right - left, style: cs };
+  }
+
+  function cardItems(list) {
+    return list.querySelectorAll('.courses-listing-item:not(.lw-course-skeleton-item)');
+  }
+
+  // Per-card focus: a card's opacity follows how much of it is inside the middle column (the
+  // row minus its side gutters). Fully inside = 1; leaving = dims toward the --lw-fade floor in
+  // proportion. Measured directly (no IntersectionObserver: its root box differs between
+  // browsers for a padded scroll container); one rAF per scroll frame.
+  var focusFrame = 0;
+
+  // `instant` skips the opacity transition (a freshly inserted row, so cards don't fade in
+  // from fully opaque).
+  function updateCardFocus(instant) {
+    focusFrame = 0;
+    var list = document.getElementById('lw-courses-listing');
+    if (!list) { return; }
+    var column = columnBox(list);
+    // Lowest opacity: --lw-fade on the row ($lw-courses-list-fade in _discover.scss, the one
+    // source). Without it, no dimming.
+    var dim = parseFloat(column.style.getPropertyValue('--lw-fade'));
+    if (!(dim >= 0 && dim <= 1)) { dim = 1; }
+    var items = cardItems(list);
+    // All reads first, then all writes: no layout thrash across up to 1000 cards.
+    var opacities = Array.prototype.map.call(items, function (item) {
+      var rect = item.getBoundingClientRect();
+      var overlap = Math.min(rect.right, column.right) - Math.max(rect.left, column.left);
+      // Against the narrower of card and column: on a phone the column is thinner than a card.
+      var basis = Math.min(rect.width, column.width);
+      var ratio = basis > 0 ? Math.max(0, Math.min(1, overlap / basis)) : 1;
+      // A snap-aligned card can read 0.98-0.99 from subpixel widths: treat as fully in.
+      if (ratio >= 0.97) { ratio = 1; }
+      return String(dim + (1 - dim) * ratio);
+    });
+    if (instant) { list.classList.add('lw-courses-listing--instant'); }
+    // Write only what changed: nearly every dimmed card keeps the same value frame to frame.
+    Array.prototype.forEach.call(items, function (item, i) {
+      if (item.lwOpacity !== opacities[i]) {
+        item.lwOpacity = opacities[i];
+        item.style.opacity = opacities[i];
+      }
+    });
+    if (instant) {
+      // Flush the no-transition style before the class comes off.
+      void list.offsetWidth;
+      list.classList.remove('lw-courses-listing--instant');
+    }
+  }
+
+  // Scroll and resize both refresh the nav state and the dimming, once per frame.
+  function scheduleRowUpdate() {
+    if (!focusFrame) {
+      focusFrame = window.requestAnimationFrame(function () {
+        updateNav();
+        updateCardFocus(false);
+      });
+    }
+  }
+
+  // Geometry of the card row. Card i's snap position is i * step (the row's padding equals its
+  // scroll-padding), so scrolling to a card is scrollTo(i * step).
+  function rowMetrics(list) {
+    var items = cardItems(list);
+    if (!items.length) { return null; }
+    var column = columnBox(list).width;
+    var step = items.length > 1 ? items[1].offsetLeft - items[0].offsetLeft : items[0].offsetWidth;
+    return {
+      step: step,
+      // Cards that fit in the column (3 at 1440px+, fewer below, never 0); caps a drag's reach.
+      perColumn: Math.max(1, Math.floor((column + (step - items[0].offsetWidth)) / step)),
+      max: list.scrollWidth - list.clientWidth,
+      // Last card index the row can scroll to (at the end the row stops short of the last
+      // snap positions), so a target never goes past what is reachable.
+      last: Math.min(items.length - 1, Math.max(0, Math.ceil((list.scrollWidth - list.clientWidth) / step)))
+    };
+  }
+
+  function nearestCard(left, metrics) {
+    return Math.max(0, Math.min(metrics.last, Math.round(left / metrics.step)));
+  }
+
+  var reducedMotion = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+
+  function scrollToCard(list, metrics, index) {
+    list.scrollTo({ left: Math.min(index * metrics.step, metrics.max), behavior: reducedMotion && reducedMotion.matches ? 'auto' : 'smooth' });
+  }
+
+  // The card the row is heading to while a move is still animating (see moveCards).
+  var cardTarget = { index: null, at: 0 };
+
+  // Move the row by `cards` (signed) snap points: prev / next move one card per click, like one
+  // wheel notch. Counting starts from the card the row is already heading to, so quick repeats
+  // (wheel notches, arrow clicks) add up instead of restarting.
+  function moveCards(list, cards) {
+    var metrics = rowMetrics(list);
+    if (!metrics) { return; }
+    var now = window.performance.now();
+    var base = cardTarget.index !== null && now - cardTarget.at < 500 ? cardTarget.index : nearestCard(list.scrollLeft, metrics);
+    cardTarget.index = Math.max(0, Math.min(metrics.last, base + cards));
+    cardTarget.at = now;
+    scrollToCard(list, metrics, cardTarget.index);
+  }
+
+  // Jump the row to `left` (0 = start) without the CSS smooth scroll animating across the swap.
+  function resetRowScroll(left) {
+    var list = document.getElementById('lw-courses-listing');
+    if (!list) { return; }
+    list.style.scrollBehavior = 'auto';
+    list.scrollLeft = left;
+    list.style.scrollBehavior = '';
+  }
+
+  // Mouse gestures on the row. A trackpad swipe and a touch swipe scroll it natively and snap
+  // card by card; the mouse gets the same feel, only while the pointer is over the centre
+  // column of cards (the dimmed side areas scroll the page):
+  //  - wheel: a vertical wheel turn moves the row sideways. The first notch of a gesture moves
+  //    one card; more movement in the same gesture adds a card per WHEEL_NOTCH_PX (capped per
+  //    event at WHEEL_MAX_CARDS), so a fast spin goes further. Sideways swipes are native.
+  //  - drag: also only from the centre column, with the grab cursor only there. The row follows
+  //    the pointer 1:1; on release a short drag settles on the next card, and a longer or faster
+  //    one carries on, proportionally, up to a full column of cards.
+  // The click that ends a drag is swallowed so it doesn't open the card under the pointer.
+  var WHEEL_GAP_MS = 150;        // quiet time that ends a wheel gesture
+  var WHEEL_NOTCH_PX = 100;      // one more card per this much wheel delta within a gesture
+  var WHEEL_MAX_CARDS = 8;
+  var DRAG_THRESHOLD_PX = 5;
+  var DRAG_INERTIA_MS = 200;     // how far a flick carries on after release
+  var DRAG_MIN_CARDS = 0.08;     // below this (and slow) a drag just settles on the nearest card
+  var SETTLE_MAX_MS = 600;
+
+  // True when clientX is over the centre column: the row minus its side padding, where the
+  // full-opacity cards are. The dimmed side areas hand wheel and drag back to the page.
+  function inCentreColumn(list, clientX) {
+    var column = columnBox(list);
+    return clientX >= column.left && clientX <= column.right;
+  }
+
+  function initRowGestures(list) {
+    var wheel = { last: 0, dir: 0, acc: 0 };
+
+    function wheelDelta(event) {
+      if (event.deltaMode === 1) { return event.deltaY * 16; }
+      if (event.deltaMode === 2) { return event.deltaY * list.clientWidth; }
+      return event.deltaY;
     }
 
-    var page = Number(data.page) || state.page;
-    var pageSize = Number(data.pageSize) || PAGE_SIZE;
-    var count = Number(data.count);
-    var totalPages = count > 0
-      ? Math.max(1, Math.ceil(count / pageSize))
-      : page + (data.next ? 1 : 0);
-    if (!(count > 0)) { count = shownCount; }
+    list.addEventListener('wheel', function (event) {
+      // Sideways swipes (trackpad / tilt wheel) and pinch-zoom are native.
+      if (event.ctrlKey || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) { return; }
+      // Over the dimmed side areas the wheel scrolls the page.
+      if (!inCentreColumn(list, event.clientX)) {
+        wheel.last = 0;
+        return;
+      }
+      if (list.scrollWidth - list.clientWidth <= 1) { return; }
 
-    var summary = holder.querySelector('[data-lw-pagination="summary"]');
-    if (summary) {
-      summary.textContent = interpolate(
-        gettext('Showing %(shown)s of %(total)s items'),
-        { shown: shownCount, total: count },
-        true
-      );
+      var delta = wheelDelta(event);
+      var dir = delta > 0 ? 1 : -1;
+      var fresh = event.timeStamp - wheel.last > WHEEL_GAP_MS || dir !== wheel.dir;
+      wheel.last = event.timeStamp;
+      if (fresh) {
+        wheel.dir = dir;
+        wheel.acc = 0;
+      }
+
+      // Always the row's, even at its first or last card (it just stops there): over the centre
+      // cards the wheel never falls through to a page scroll.
+      event.preventDefault();
+      if (fresh) {
+        moveCards(list, dir);
+        return;
+      }
+      wheel.acc += Math.abs(delta);
+      var cards = Math.min(WHEEL_MAX_CARDS, Math.floor(wheel.acc / WHEEL_NOTCH_PX));
+      if (cards > 0) {
+        wheel.acc -= cards * WHEEL_NOTCH_PX;
+        moveCards(list, dir * cards);
+      }
+    }, { passive: false });
+
+    var drag = null;
+    var swallowClick = false;
+    var settleTimer = null;
+
+    function endSettle() {
+      window.clearTimeout(settleTimer);
+      list.classList.remove('lw-courses-listing--settling');
     }
 
-    var list = holder.querySelector('[data-lw-pagination="pages"]');
-    if (list) {
-      list.innerHTML = pageItems(page, totalPages).map(function (n) {
-        if (n === null) {
-          return '<li class="lw-courses-pagination__ellipsis" aria-hidden="true">&hellip;</li>';
+    list.addEventListener('pointerdown', function (event) {
+      if (event.pointerType !== 'mouse' || event.button !== 0) { return; }
+      if (event.target.closest('.lw-course-card__menu-list')) { return; }
+      if (!inCentreColumn(list, event.clientX)) { return; }
+      endSettle();
+      drag = { x: event.clientX, left: list.scrollLeft, active: false, id: event.pointerId, samples: [] };
+    });
+
+    list.addEventListener('pointermove', function (event) {
+      // Hover: the grab hand only over the centre column; elsewhere the normal cursor.
+      if (!drag && event.pointerType === 'mouse') {
+        var overCentre = inCentreColumn(list, event.clientX);
+        if (overCentre !== list.classList.contains('lw-courses-listing--grab')) {
+          list.classList.toggle('lw-courses-listing--grab', overCentre);
         }
-        var isCurrent = n === page;
-        return '<li><button type="button" class="lw-courses-pagination__page'
-          + (isCurrent ? ' lw-courses-pagination__page--active' : '') + '"'
-          + ' data-page="' + n + '"'
-          + ' aria-label="' + escapeHtml(interpolate(gettext('Page %(page)s'), { page: n }, true)) + '"'
-          + (isCurrent ? ' aria-current="page"' : '')
-          + '>' + n + '</button></li>';
-      }).join('');
+        return;
+      }
+      if (!drag || event.pointerId !== drag.id) { return; }
+      var dx = event.clientX - drag.x;
+      if (!drag.active) {
+        if (Math.abs(dx) < DRAG_THRESHOLD_PX) { return; }
+        drag.active = true;
+        list.classList.add('lw-courses-listing--dragging');
+        // Capture only once it is a drag, so a plain click still reaches the card's link.
+        list.setPointerCapture(drag.id);
+      }
+      drag.samples.push({ t: event.timeStamp, x: event.clientX });
+      if (drag.samples.length > 8) { drag.samples.shift(); }
+      list.scrollLeft = drag.left - dx;
+    });
+
+    // Where a released drag should land: nearest card for a nudge, else 1..perColumn cards
+    // further in the drag's direction, by distance plus the speed at release.
+    function dragTarget(event, metrics) {
+      var scrolled = drag.x - event.clientX;
+      var samples = drag.samples;
+      var last = samples[samples.length - 1];
+      var first = last && samples.filter(function (sample) { return last.t - sample.t <= 100; })[0];
+      var velocity = first && last.t > first.t ? (first.x - last.x) / (last.t - first.t) : 0;
+      var dir = scrolled !== 0 ? Math.sign(scrolled) : Math.sign(velocity);
+      var fling = Math.max(0, velocity * dir);
+      if (!dir || (Math.abs(scrolled) < DRAG_MIN_CARDS * metrics.step && fling < 0.3)) {
+        return nearestCard(list.scrollLeft, metrics);
+      }
+      var startIndex = nearestCard(drag.left, metrics);
+      var projected = Math.abs(scrolled) + fling * DRAG_INERTIA_MS;
+      var cards = Math.max(1, Math.min(metrics.perColumn, Math.round(projected / metrics.step)));
+      return Math.max(0, Math.min(metrics.last, startIndex + dir * cards));
     }
-    holder.hidden = false;
+
+    function endDrag(event) {
+      if (!drag || event.pointerId !== drag.id) { return; }
+      if (drag.active) {
+        swallowClick = true;
+        window.setTimeout(function () { swallowClick = false; }, 0);
+        var metrics = rowMetrics(list);
+        cardTarget.index = null;
+        if (list.hasPointerCapture(drag.id)) { list.releasePointerCapture(drag.id); }
+        list.classList.remove('lw-courses-listing--dragging');
+        if (metrics) {
+          // Snap stays off until the animation lands on a snap point, so it can't pull elsewhere.
+          list.classList.add('lw-courses-listing--settling');
+          scrollToCard(list, metrics, dragTarget(event, metrics));
+          settleTimer = window.setTimeout(endSettle, SETTLE_MAX_MS);
+        }
+      }
+      drag = null;
+    }
+    // Snap comes back once the settle animation has landed (or after SETTLE_MAX_MS).
+    list.addEventListener('scrollend', endSettle);
+    list.addEventListener('pointerleave', function () {
+      if (!drag) { list.classList.remove('lw-courses-listing--grab'); }
+    });
+    list.addEventListener('pointerup', endDrag);
+    list.addEventListener('pointercancel', endDrag);
+
+    // Capture phase: runs before the card link's own handling.
+    list.addEventListener('click', function (event) {
+      if (swallowClick) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    }, true);
+
+    // Native drag-and-drop of links / images would fight the drag scroll.
+    list.addEventListener('dragstart', function (event) { event.preventDefault(); });
   }
 
   function setBusy(busy) {
@@ -428,7 +744,8 @@
    * SKELETON_DELAY_MS. Resolves to true when this response was rendered, false when a newer
    * request superseded it.
    */
-  function fetchTab(tab, page) {
+  function fetchTab(tab, options) {
+    var opts = options || {};
     var requestId = ++state.requestId;
     var isCurrent = function () { return requestId === state.requestId; };
     setBusy(true);
@@ -440,23 +757,29 @@
     }
 
     var staged = null;
-    return loadTab(tab, page).then(function (data) {
+    return loadTab(tab).then(function (data) {
       if (!isCurrent()) { return false; }
       var results = Array.isArray(data.results) ? data.results : [];
-      // The page emptied under us (e.g. its last My List course was removed): step back.
-      if (!results.length && page > 1) { return fetchTab(tab, page - 1); }
       staged = buildList(results);
       return enhanceCards(staged).then(function () {
         // A superseded request must not touch the newer one's skeleton timer.
         return isCurrent() ? skeletonSettled() : null;
       }).then(function () {
         if (!isCurrent()) { return false; }
-        state.page = Number(data.page) || page;
         commitList(staged);
         state.skeletonShownAt = null;
+        // A new tab starts at the left edge; a refresh of the same tab (My List remove,
+        // unenroll) keeps the learner's place.
+        if (opts.resetScroll) {
+          resetRowScroll(0);
+        } else if (state.savedScroll !== null) {
+          resetRowScroll(state.savedScroll);
+        }
+        state.savedScroll = null;
+        updateNav();
+        updateCardFocus(true);
         setMessage('', false);
         setEmptyState(tab, !results.length);
-        renderPagination(data, results.length);
         setBusy(false);
         return true;
       });
@@ -468,7 +791,8 @@
         state.skeletonShownAt = null;
         setEmptyState(tab, false);
         setMessage(gettext('Unable to load courses. Please try again.'), true);
-        renderPagination(null, 0);
+        state.savedScroll = null;
+        updateNav();
         setBusy(false);
         return true;
       });
@@ -479,10 +803,9 @@
     var opts = options || {};
     if (VALID_TABS.indexOf(tab) < 0) { tab = 'continue'; }
     state.tab = tab;
-    state.page = 1;
     setActiveTab(tab);
     setQueryTab(tab);
-    return fetchTab(tab, 1).then(function (rendered) {
+    return fetchTab(tab, { resetScroll: true }).then(function (rendered) {
       if (rendered && !opts.silentFocus && document.getElementById('lw-courses-panel')) {
         document.getElementById('lw-courses-panel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }
@@ -493,16 +816,16 @@
     var tablist = document.querySelector('.lw-courses-tabs');
 
     // lw-course-cards.js fires this after "Add to / Remove from my list"; keep the My List
-    // tab in step with it (a removed course leaves the list, the pager recounts).
+    // tab in step with it (a removed course leaves the list).
     document.addEventListener('lw:my-list-changed', function () {
       clearCache();
-      if (state.tab === 'mylist') { fetchTab('mylist', state.page); }
+      if (state.tab === 'mylist') { fetchTab('mylist'); }
     });
     // After an unenroll, reload the open tab so the course leaves Continue Learning and the
     // cards' progress and buttons are redrawn from fresh enrollment data.
     document.addEventListener('lw:enrollment-changed', function () {
       clearCache();
-      fetchTab(state.tab, state.page).then(function (rendered) {
+      fetchTab(state.tab).then(function (rendered) {
         // The card whose menu had focus was just replaced; keep focus in the section.
         var heading = document.getElementById('lw-courses-section-title');
         if (rendered && heading) { heading.focus(); }
@@ -511,13 +834,24 @@
     var list = document.getElementById('lw-courses-listing');
     if (!tablist || !list) { return; }
 
+    initRowGestures(list);
+    list.addEventListener('scroll', scheduleRowUpdate, { passive: true });
+    window.addEventListener('resize', scheduleRowUpdate);
+    var nav = navEl();
+    if (nav) {
+      nav.addEventListener('click', function (event) {
+        var button = event.target.closest('[data-lw-nav]');
+        if (button && button.getAttribute('aria-disabled') !== 'true') { moveCards(list, button.getAttribute('data-lw-nav') === 'next' ? 1 : -1); }
+      });
+    }
+
     // courses.html paints the skeleton for the ?tab= tab, so the first load swaps straight
     // from it to the cards (or the empty state) with no minimum wait.
     if (document.querySelector('.lw-course-skeleton-item')) {
       state.skeletonShownAt = performance.now() - SKELETON_MIN_MS;
     }
 
-    // Intent prefetch: hovering or focusing a tab warms its first page.
+    // Intent prefetch: hovering or focusing a tab warms its cards.
     ['pointerenter', 'focusin'].forEach(function (type) {
       tablist.addEventListener(type, function (event) {
         var button = event.target.closest && event.target.closest('.lw-courses-tabs__tab');
@@ -556,20 +890,6 @@
       event.preventDefault();
       tabs[nextIndex].focus();
     });
-
-    var pagination = document.querySelector('[data-lw-library="pagination"]');
-    if (pagination) {
-      pagination.addEventListener('click', function (event) {
-        var button = event.target.closest('.lw-courses-pagination__page');
-        if (!button || !pagination.contains(button)) { return; }
-        var page = parseInt(button.getAttribute('data-page'), 10);
-        if (!page || page === state.page) { return; }
-        fetchTab(state.tab, page).then(function (rendered) {
-          var panel = document.getElementById('lw-courses-panel');
-          if (rendered && panel) { panel.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
-        });
-      });
-    }
 
     selectTab(tabFromQuery(), { silentFocus: true });
   }

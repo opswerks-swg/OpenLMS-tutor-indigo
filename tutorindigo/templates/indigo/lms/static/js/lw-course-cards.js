@@ -104,18 +104,27 @@
 
   // Card info is cached per course id as a promise, so a card rendered while its request
   // is still in flight waits for it. Only ids not requested yet are fetched.
+  var CARD_INFO_CHUNK = 50;
   var cardInfoRequests = {};
   function loadCardInfo(courseIds) {
     var missing = courseIds.filter(function (id) { return !(id in cardInfoRequests); });
-    if (missing.length) {
-      var query = missing.map(function (id) { return 'course_id=' + encodeURIComponent(id); }).join('&');
+    // /courses renders every course of a tab, so ask in chunks: one URL with hundreds of ids
+    // would pass proxy URL limits and the server's per-request id cap.
+    for (var start = 0; start < missing.length; start += CARD_INFO_CHUNK) {
+      var chunk = missing.slice(start, start + CARD_INFO_CHUNK);
+      var query = chunk.map(function (id) { return 'course_id=' + encodeURIComponent(id); }).join('&');
       var request = getJson(CARD_INFO_URL + '?' + query).then(function (data) {
+        if (!data) { return null; }
         var byId = {};
-        ((data && data.results) || []).forEach(function (info) { byId[info.course_id] = info; });
+        (data.results || []).forEach(function (info) { byId[info.course_id] = info; });
         return byId;
       });
-      missing.forEach(function (id) {
-        cardInfoRequests[id] = request.then(function (byId) { return byId[id] || null; });
+      chunk.forEach(function (id) {
+        cardInfoRequests[id] = request.then(function (byId) {
+          // A failed request is not cached, so the next render asks again.
+          if (!byId) { delete cardInfoRequests[id]; return null; }
+          return byId[id] || null;
+        });
       });
     }
     return Promise.all(courseIds.map(function (id) { return cardInfoRequests[id]; }))

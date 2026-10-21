@@ -93,7 +93,19 @@
           % endfor
         </div>
 
-        <h2 class="lw-courses-section-title" id="lw-courses-section-title" tabindex="-1">${active_heading}</h2>
+        <div class="lw-courses-section-head">
+          <h2 class="lw-courses-section-title" id="lw-courses-section-title" tabindex="-1">${active_heading}</h2>
+          ## Scrollbar is hidden, so these are the pointer controls; lw-courses-tabs.js shows them
+          ## only when the row overflows.
+          <div class="lw-courses-nav" data-lw-library="nav" hidden>
+            <button type="button" class="lw-courses-nav__btn" data-lw-nav="prev" aria-controls="lw-courses-listing" aria-label="${_('Previous courses')}">
+              <span class="lw-icon lw-icon--arrow-left" aria-hidden="true"></span>
+            </button>
+            <button type="button" class="lw-courses-nav__btn" data-lw-nav="next" aria-controls="lw-courses-listing" aria-label="${_('Next courses')}">
+              <span class="lw-icon lw-icon--arrow-right" aria-hidden="true"></span>
+            </button>
+          </div>
+        </div>
         <div class="course-holder courses lw-courses-library no-course-discovery" role="tabpanel"
              id="lw-courses-panel" aria-labelledby="lw-courses-section-title"
              data-discover-url="${search_catalog_url}"
@@ -127,12 +139,6 @@
             </li>
             % endfor
           </ul>
-          <div class="lw-courses-pagination" data-lw-library="pagination" hidden>
-            <p class="lw-courses-pagination__summary" data-lw-pagination="summary" aria-live="polite"></p>
-            <nav class="lw-courses-pagination__pages" aria-label="${_('Course pages')}">
-              <ul class="lw-courses-pagination__list" data-lw-pagination="pages"></ul>
-            </nav>
-          </div>
         </div>
       </section>
     </section>
