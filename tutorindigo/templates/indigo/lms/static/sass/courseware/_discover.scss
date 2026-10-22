@@ -375,9 +375,10 @@ $lw-icon-book-open: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2
         flex-wrap: nowrap;
         align-items: stretch;
         gap: 16px;
-        margin: 0 calc(-1 * var(--lw-edge));
-        // Room for card focus rings that the scroll box would clip.
-        padding: 4px var(--lw-edge) 16px;
+        // The card's hover shadow (4px 4px 20px) reaches ~16px above and ~24px below, and the scroll
+        // box clips at its padding: pad for it, and pull the margins back so the layout is unchanged.
+        margin: -16px calc(-1 * var(--lw-edge)) -12px;
+        padding: 20px var(--lw-edge) 28px;
         overflow-x: auto;
         overflow-y: hidden;
         list-style: none;
@@ -445,6 +446,13 @@ $lw-icon-book-open: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2
 
             &:focus-within {
                 opacity: 1 !important;
+            }
+
+            // A flex item: z-index works without position. The hovered card's shadow sits above
+            // its neighbours instead of under them.
+            &:hover,
+            &:focus-within {
+                z-index: 1;
             }
         }
 

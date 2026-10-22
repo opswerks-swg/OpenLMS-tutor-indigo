@@ -6,6 +6,7 @@
 $lw-card-slate-50: #F8FAFC;
 $lw-card-slate-100: #F1F5F9;
 $lw-card-slate-200: #E2E8F0;
+$lw-card-slate-400: #94A3B8;
 $lw-card-slate-500: #64748B;
 $lw-card-slate-800: #1E293B;
 $lw-card-blue-50: #E6F2FF;
@@ -108,6 +109,15 @@ $lw-icon-star: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/s
     border-radius: $lw-card-radius;
     box-shadow: none;
     text-align: left;
+    transition: border-color 0.15s ease-out, box-shadow 0.15s ease-out;
+
+    // Hover / focus (Figma): 2px slate-400 border, 4px 4px 20px shadow. The 2px is the 1px border
+    // plus a 1px ring, so the card's content does not shift by a pixel. Not for the skeleton.
+    &:not(.lw-course-card--skeleton):hover,
+    &:not(.lw-course-card--skeleton):focus-within {
+        border-color: $lw-card-slate-400;
+        box-shadow: 0 0 0 1px $lw-card-slate-400, 4px 4px 20px 0 rgba(0, 0, 0, 0.1);
+    }
 
     [hidden] {
         display: none !important;
@@ -510,6 +520,7 @@ $lw-icon-star: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/s
         animation: none;
     }
 
+    .lw-course-card,
     .lw-course-card__image img {
         transition: none;
     }
@@ -518,6 +529,14 @@ $lw-icon-star: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/s
 body.indigo-dark-theme .lw-course-card {
     background: $primary-light-d;
     border-color: $border-color-d;
+
+    // The light-theme hover rule loses to the border colour above; restate it, with a stronger
+    // shadow because a 10% black one is invisible on a dark page.
+    &:not(.lw-course-card--skeleton):hover,
+    &:not(.lw-course-card--skeleton):focus-within {
+        border-color: $lw-card-slate-400;
+        box-shadow: 0 0 0 1px $lw-card-slate-400, 4px 4px 20px 0 rgba(0, 0, 0, 0.4);
+    }
 
     &__title,
     &__rating,
