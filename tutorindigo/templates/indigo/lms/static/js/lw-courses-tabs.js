@@ -119,6 +119,7 @@
   function loadAllPages(tab) {
     var results = [];
     var seen = {};
+    var partial = false;
     function merge(data, page) {
       var echoed = Number(data && data.page);
       if (!data || !Array.isArray(data.results) || (echoed && echoed !== page)) { return 0; }
@@ -133,7 +134,7 @@
     function sequential(page) {
       return getJson(tabUrl(tab, page)).then(function (data) {
         return merge(data, page) && data.next && page < MAX_PAGES ? sequential(page + 1) : null;
-      }, function () { return null; });
+      }, function () { partial = true; return null; });
     }
     return firstPage(tab).then(function (first) {
       merge(first, 1);
@@ -144,30 +145,37 @@
       if (count <= 0) {
         rest = first.next ? sequential(2) : Promise.resolve();
       } else {
+        // Responses arrive in any order, so keep each page by number and merge them in page
+        // order afterwards: the API's sort order (e.g. soonest due first) must survive paging.
+        var pages = [];
         var requests = [];
         for (var page = 2; page <= total; page += 1) {
           requests.push(getJson(tabUrl(tab, page)).then(
-            (function (n) { return function (data) { merge(data, n); }; }(page)),
-            function () { /* keep the pages that loaded */ }
+            (function (n) { return function (data) { pages[n] = data; }; }(page)),
+            function () { partial = true; /* keep the pages that loaded */ }
           ));
         }
-        rest = Promise.all(requests);
+        rest = Promise.all(requests).then(function () {
+          for (var n = 2; n <= total; n += 1) { merge(pages[n], n); }
+        });
       }
       return rest.then(function () {
-        return { results: results };
+        return { results: results, partial: partial };
       });
     });
   }
 
-  // Cached for CACHE_TTL_MS; a failed request is dropped so the next try refetches.
+  // Cached for CACHE_TTL_MS. A failed load, or one that is missing pages (partial), is dropped
+  // from the cache so the next visit refetches instead of repeating a truncated list.
   function loadTab(tab) {
     var entry = responseCache[tab];
     if (entry && Date.now() - entry.at < CACHE_TTL_MS) { return entry.promise; }
     var promise = loadAllPages(tab);
     responseCache[tab] = { at: Date.now(), promise: promise };
-    promise.catch(function () {
+    function drop() {
       if (responseCache[tab] && responseCache[tab].promise === promise) { delete responseCache[tab]; }
-    });
+    }
+    promise.then(function (data) { if (data.partial) { drop(); } }, drop);
     return promise;
   }
 
@@ -534,6 +542,8 @@
   }
 
   function nearestCard(left, metrics) {
+    // At the very end the row stops short of the last snap position: that is the last card.
+    if (left >= metrics.max - 1) { return metrics.last; }
     return Math.max(0, Math.min(metrics.last, Math.round(left / metrics.step)));
   }
 
@@ -566,6 +576,7 @@
     list.style.scrollBehavior = 'auto';
     list.scrollLeft = left;
     list.style.scrollBehavior = '';
+    cardTarget.index = null;
   }
 
   // Mouse gestures on the row. A trackpad swipe and a touch swipe scroll it natively and snap

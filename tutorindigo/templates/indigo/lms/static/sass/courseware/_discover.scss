@@ -112,6 +112,8 @@ $lw-courses-font: 'Google Sans Flex', $font-family-title;
 .find-courses {
     max-width: none;
     // The card row bleeds to 100vw, which includes the scrollbar: clip, don't scroll the page.
+    // `hidden` is only the fallback for browsers without `clip` (Safari before 16).
+    overflow-x: hidden;
     overflow-x: clip;
     padding-bottom: 0 !important;
     padding-left: $lw-courses-gutter !important;
