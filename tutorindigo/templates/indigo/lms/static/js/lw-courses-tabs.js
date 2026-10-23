@@ -98,13 +98,29 @@
     });
   }
 
+  // PRD LMS 2.3: a load that passes 10 s ends in the error state, which offers Retry.
+  var REQUEST_TIMEOUT_MS = 10 * 1000;
+
   function getJson(url) {
-    return fetch(url, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+    var controller = typeof AbortController === 'function' ? new AbortController() : null;
+    var timer = window.setTimeout(function () {
+      if (controller) { controller.abort(); }
+    }, REQUEST_TIMEOUT_MS);
+    var options = { credentials: 'same-origin', headers: { Accept: 'application/json' } };
+    if (controller) { options.signal = controller.signal; }
+    return fetch(url, options)
       .then(function (response) {
         if (!response.ok) {
           throw new Error('library_fetch_failed');
         }
         return response.json();
+      })
+      .then(function (data) {
+        window.clearTimeout(timer);
+        return data;
+      }, function (error) {
+        window.clearTimeout(timer);
+        throw error;
       });
   }
 
@@ -382,6 +398,9 @@
     if (!message) { return; }
     message.textContent = text || '';
     message.hidden = !visible;
+    // Only an error message comes with a Retry.
+    var retry = document.querySelector('[data-lw-library="retry"]');
+    if (retry) { retry.hidden = !visible; }
   }
 
   function setEmptyState(tab, visible) {
@@ -724,26 +743,25 @@
     list.addEventListener('dragstart', function (event) { event.preventDefault(); });
   }
 
-  // Screen readers: the total, now that the pager's "Showing N of M" is gone.
-  function announceCount() {
-    var el = document.querySelector('[data-lw-library="count"]');
-    if (!el) { return; }
-    var total = view.count;
-    var shown = view.rows.length;
-    if (!total) {
-      el.textContent = '';
-    } else if (total > shown) {
-      // Capped list: say how many exist and how many can be reached.
-      el.textContent = interpolate(
+  // The total for screen readers. A capped list says how many exist and how many are shown.
+  function countLabel(total, shown) {
+    if (!total) { return ''; }
+    if (total > shown) {
+      return interpolate(
         gettext('Showing %(shown)s of %(total)s courses in this list'),
         { shown: shown, total: total },
         true
       );
-    } else if (total === 1) {
-      el.textContent = gettext('1 course in this list');
-    } else {
-      el.textContent = interpolate(gettext('%(total)s courses in this list'), { total: total }, true);
     }
+    if (total === 1) { return gettext('1 course in this list'); }
+    return interpolate(gettext('%(total)s courses in this list'), { total: total }, true);
+  }
+
+  // Screen readers: the total, now that the pager's "Showing N of M" is gone.
+  function announceCount() {
+    var el = document.querySelector('[data-lw-library="count"]');
+    if (!el) { return; }
+    el.textContent = countLabel(view.count, view.rows.length);
   }
 
   function setBusy(busy) {
@@ -792,6 +810,8 @@
           return true;
         }
         if (list && /lw-courses-listing--(dragging|settling)/.test(list.className)) { return false; }
+        // Swapping the cards would drop keyboard focus (or an open card menu) to <body>.
+        if (list && list.contains(document.activeElement)) { return false; }
       }
       staged = buildList(data.results, 0);
       return enhanceCards(staged).then(function () {
@@ -828,6 +848,8 @@
         return true;
       });
     }).catch(function () {
+      // A 200 with a malformed body is cached by getPage; drop it so Retry fetches again.
+      delete pageCache[tab];
       if (!isCurrent() || background) { return false; }
       return skeletonSettled().then(function () {
         if (!isCurrent()) { return false; }
@@ -885,6 +907,17 @@
     initRowGestures(list);
     list.addEventListener('scroll', scheduleRowUpdate, { passive: true });
     window.addEventListener('resize', scheduleRowUpdate);
+
+    // Retry on the load-error state: reload the open tab without reloading the page.
+    var retryButton = document.querySelector('[data-lw-library="retry"]');
+    if (retryButton) {
+      retryButton.addEventListener('click', function () {
+        // The button is hidden once loading starts; keep keyboard focus in the section.
+        var heading = document.getElementById('lw-courses-section-title');
+        if (heading) { heading.focus(); }
+        fetchTab(state.tab, { resetScroll: true });
+      });
+    }
 
     // Coming back to this tab or window: if the open list is older than FOCUS_REVALIDATE_MS,
     // check it again quietly (a failed first load is retried instead).
@@ -966,6 +999,8 @@
       getPage: getPage,
       peekPage: peekPage,
       tabUrl: tabUrl,
+      countLabel: countLabel,
+      REQUEST_TIMEOUT_MS: REQUEST_TIMEOUT_MS,
       normalizePage: normalizePage,
       clearCache: clearCache,
       ttlFor: ttlFor,

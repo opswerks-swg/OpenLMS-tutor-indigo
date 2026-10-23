@@ -21,17 +21,24 @@ const SOURCE = path.join(
 );
 
 // A controllable clock and a fake library API.
-function setup(handler) {
+function setup(handler, options) {
+  const opts = options || {};
   const clock = { now: 1000000 };
   class FakeDate extends Date {
     static now() { return clock.now; }
   }
   const calls = [];
-  const fakeFetch = (url) => {
+  const fakeFetch = (url, fetchOptions) => {
     const params = new URL(url, 'http://lms.test').searchParams;
     const tab = params.get('tab');
     const page = Number(params.get('page'));
     calls.push(`${tab}:${page}`);
+    if (handler(tab, page) === 'HANG') {
+      // Never answers; only an abort ends it, like a stuck network request.
+      return new Promise((resolve, reject) => {
+        fetchOptions.signal.addEventListener('abort', () => reject(new Error('aborted')));
+      });
+    }
     return Promise.resolve(handler(tab, page)).then((body) => {
       if (body instanceof Error) { return { ok: false, status: 500, json: () => Promise.resolve({}) }; }
       return { ok: true, json: () => Promise.resolve(body) };
@@ -41,13 +48,13 @@ function setup(handler) {
     __LW_TEST__: {},
     gettext: (s) => s,
     location: { origin: 'http://lms.test', search: '' },
-    setTimeout,
+    setTimeout: opts.timers ? (fn, ms) => { opts.timers.push({ fn, ms }); return opts.timers.length; } : setTimeout,
     clearTimeout,
   };
   const document = { readyState: 'loading', addEventListener() {} };
   const context = vm.createContext({
     window, document, fetch: fakeFetch, performance: { now: () => 0 }, Date: FakeDate,
-    URL, URLSearchParams, Promise, JSON, setTimeout, clearTimeout,
+    URL, URLSearchParams, Promise, JSON, setTimeout, clearTimeout, AbortController,
   });
   vm.runInContext(fs.readFileSync(SOURCE, 'utf8'), context);
   return { api: window.__LW_TEST__.coursesTabs, clock, calls };
@@ -159,6 +166,30 @@ test('peekPage returns a fresh copy, then a stale one, then nothing', async () =
   assert.strictEqual(stale.data.results.length, 15);
   clock.now += api.MAX_STALE_MS;
   assert.strictEqual(api.peekPage('assigned'), null, 'too old to show');
+});
+
+test('a request that passes the timeout is aborted, fails and is not cached', async () => {
+  const timers = [];
+  let hang = true;
+  const { api, calls } = setup(() => (hang ? 'HANG' : pageBody(3)), { timers });
+  const pending = api.getPage('new');
+  const timeout = timers.find((timer) => timer.ms === api.REQUEST_TIMEOUT_MS);
+  assert.ok(timeout, 'a 10 s timer is set');
+  assert.strictEqual(api.REQUEST_TIMEOUT_MS, 10 * 1000);
+  timeout.fn();
+  await assert.rejects(pending);
+  hang = false;
+  const data = await api.getPage('new');
+  assert.strictEqual(data.results.length, 3);
+  assert.strictEqual(calls.length, 2, 'the retry went to the network');
+});
+
+test('countLabel says how many exist when the list is capped', () => {
+  const { api } = setup(() => pageBody(1));
+  assert.strictEqual(api.countLabel(0, 0), '');
+  assert.strictEqual(api.countLabel(1, 1), '1 course in this list');
+  assert.strictEqual(api.countLabel(12, 12), '12 courses in this list');
+  assert.strictEqual(api.countLabel(17, 15), 'Showing 15 of 17 courses in this list');
 });
 
 async function main() {

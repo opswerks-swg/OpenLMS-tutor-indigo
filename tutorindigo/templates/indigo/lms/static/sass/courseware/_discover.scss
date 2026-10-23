@@ -342,6 +342,37 @@ $lw-icon-book-open: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2
 
 }
 
+// Retry on the load-error state. !important: the LMS global button styles otherwise win.
+button.lw-courses-library__retry {
+    margin: 0 0 24px;
+    padding: 8px 16px !important;
+    border: 1px solid $lw-tabs-blue-600 !important;
+    border-radius: 6px !important;
+    background: #fff !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    font-family: $lw-courses-font !important;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 20px;
+    color: $lw-tabs-blue-600 !important;
+    cursor: pointer;
+
+    &[hidden] {
+        display: none !important;
+    }
+
+    &:hover,
+    &:focus-visible {
+        background: $lw-tabs-active-bg !important;
+    }
+
+    &:focus-visible {
+        outline: 2px solid $lw-tabs-blue-600;
+        outline-offset: 2px;
+    }
+}
+
 .find-courses .courses-container {
     // Section title above the cards — same "Page Heading" as the learner dashboard
     // (CoursesPanel .assigned-courses-title). !important: _extras.scss forces Rockford on h2.
@@ -701,6 +732,20 @@ body.indigo-dark-theme {
     }
     .lw-courses-library__message {
         color: $text-color-primary;
+    }
+    button.lw-courses-library__retry {
+        border-color: $primary-d !important;
+        background: $primary-light-d !important;
+        color: $primary-d !important;
+
+        &:hover,
+        &:focus-visible {
+            background: $light-overlay-d !important;
+        }
+
+        &:focus-visible {
+            outline-color: $primary-d;
+        }
     }
     .lw-courses-nav__btn {
         // $primary-light-d: visibly lighter than the page ($body-bg-d), like the dark cards.
