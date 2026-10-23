@@ -42,15 +42,13 @@
     },
   };
 
-  // The library is one horizontal scroll row, so every page is fetched. The API caps page_size
-  // at 50 (library_helpers.MAX_PAGE_SIZE); MAX_PAGES bounds the loop if `next` never clears.
-  var PAGE_SIZE = 50;
-  var MAX_PAGES = 20;
+  // One request per tab: the API returns at most 15 courses (library_helpers.LIST_TAB_MAX) and
+  // the true total in `count`. See Personal-setup/pr-spec-deviation-library-caps.md.
+  var PAGE_SIZE = 15;
 
   // Loading (no flicker): responses are cached briefly and prefetched when a tab is hovered or
   // focused; cards are built and filled in off-screen, then swapped in at once. The skeleton
   // only appears when loading is slow, and once shown stays long enough not to blink.
-  var CACHE_TTL_MS = 60 * 1000;
   var SKELETON_DELAY_MS = 150;
   var SKELETON_MIN_MS = 300;
   // Don't hold finished rows back forever on a slow card-info / completion lookup.
@@ -70,8 +68,14 @@
     skeletonTimer: null,
   };
 
-  // tab -> { at, promise } (see loadTab).
-  var responseCache = {};
+  // The list on screen: which tab and how many courses the learner has in it.
+  var view = {
+    tab: null,
+    count: 0,
+    // Every row on screen, in order: a background refresh compares against this.
+    rows: [],
+    loadedAt: 0,
+  };
 
   var HTML_ESCAPES = {
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
@@ -104,102 +108,77 @@
       });
   }
 
-  function tabUrl(tab, page) {
+  function tabUrl(tab) {
     return LIBRARY_URL + '?tab=' + encodeURIComponent(tab)
-      + '&page=' + encodeURIComponent(String(page))
-      + '&page_size=' + PAGE_SIZE;
+      + '&page=1&page_size=' + PAGE_SIZE;
   }
 
-  // Every page of a tab, merged into one response: { results, count }. Page 1 gives the count;
-  // the remaining pages then load in parallel, and a page that fails is skipped (the rows that
-  // did load still show) rather than failing the whole tab. Some tabs (continue, suggested)
-  // ignore `page` server-side and always return page 1, so a page whose echoed number differs
-  // is dropped, as are rows already seen. Without a count, pages are followed one at a time
-  // through `next`.
-  function loadAllPages(tab) {
-    var results = [];
+  // Each tab's response is cached. It is "fresh" within its tab's TTL; an older copy (up to
+  // MAX_STALE_MS) can still paint at once as a preview while a fresh one loads in the
+  // background (stale-while-revalidate). The list changes after the learner's own actions,
+  // which call clearCache(); changes made elsewhere show up on the next refresh or return.
+  var TTL_MS = {
+    continue: 60 * 1000,
+    assigned: 60 * 1000,
+    mylist: 5 * 60 * 1000,
+    new: 5 * 60 * 1000,
+    suggested: 5 * 60 * 1000,
+  };
+  var DEFAULT_TTL_MS = 60 * 1000;
+  var MAX_STALE_MS = 30 * 60 * 1000;
+  // Coming back to the tab or window re-checks the open list when it is older than this.
+  var FOCUS_REVALIDATE_MS = 30 * 1000;
+
+  // tab -> { at, promise, data }
+  var pageCache = {};
+
+  function ttlFor(tab) {
+    return TTL_MS[tab] || DEFAULT_TTL_MS;
+  }
+
+  // The response for a tab. `force` skips the cache. A failed request is dropped from the cache
+  // so the next try refetches.
+  function getPage(tab, force) {
+    var entry = pageCache[tab];
+    if (!force && entry && Date.now() - entry.at < ttlFor(tab)) { return entry.promise; }
+    var created = { at: Date.now(), promise: getJson(tabUrl(tab)), data: null };
+    pageCache[tab] = created;
+    created.promise.then(function (data) {
+      created.data = data;
+    }, function () {
+      if (pageCache[tab] === created) { delete pageCache[tab]; }
+    });
+    return created.promise;
+  }
+
+  // A cached response that can paint right now: { data, fresh }, or null.
+  function peekPage(tab) {
+    var entry = pageCache[tab];
+    if (!entry || !entry.data) { return null; }
+    var age = Date.now() - entry.at;
+    return age < MAX_STALE_MS ? { data: entry.data, fresh: age < ttlFor(tab) } : null;
+  }
+
+  // The rows of a response, de-duplicated by courseId in API order (the server owns the sort),
+  // with the learner's true total. A malformed response is an error.
+  function normalizePage(data) {
+    if (!data || !Array.isArray(data.results)) { throw new Error('library_fetch_failed'); }
     var seen = {};
-    var partial = false;
-    function merge(data, page) {
-      var echoed = Number(data && data.page);
-      if (!data || !Array.isArray(data.results) || (echoed && echoed !== page)) { return 0; }
-      var fresh = data.results.filter(function (row) {
-        if (seen[row.courseId]) { return false; }
-        seen[row.courseId] = true;
-        return true;
-      });
-      results = results.concat(fresh);
-      return fresh.length;
-    }
-    function sequential(page) {
-      return getJson(tabUrl(tab, page)).then(function (data) {
-        return merge(data, page) && data.next && page < MAX_PAGES ? sequential(page + 1) : null;
-      }, function () { partial = true; return null; });
-    }
-    return firstPage(tab).then(function (first) {
-      merge(first, 1);
-      var count = Number(first.count) || 0;
-      var size = Number(first.pageSize) || PAGE_SIZE;
-      var total = Math.min(MAX_PAGES, Math.ceil(count / size));
-      var rest;
-      if (count <= 0) {
-        rest = first.next ? sequential(2) : Promise.resolve();
-      } else {
-        // Responses arrive in any order, so keep each page by number and merge them in page
-        // order afterwards: the API's sort order (e.g. soonest due first) must survive paging.
-        var pages = [];
-        var requests = [];
-        for (var page = 2; page <= total; page += 1) {
-          requests.push(getJson(tabUrl(tab, page)).then(
-            (function (n) { return function (data) { pages[n] = data; }; }(page)),
-            function () { partial = true; /* keep the pages that loaded */ }
-          ));
-        }
-        rest = Promise.all(requests).then(function () {
-          for (var n = 2; n <= total; n += 1) { merge(pages[n], n); }
-        });
-      }
-      return rest.then(function () {
-        return { results: results, partial: partial };
-      });
+    var results = data.results.filter(function (row) {
+      if (!row || seen[row.courseId]) { return false; }
+      seen[row.courseId] = true;
+      return true;
     });
+    return { results: results, count: Number(data.count) || results.length };
   }
 
-  // Cached for CACHE_TTL_MS. A failed load, or one that is missing pages (partial), is dropped
-  // from the cache so the next visit refetches instead of repeating a truncated list.
-  function loadTab(tab) {
-    var entry = responseCache[tab];
-    if (entry && Date.now() - entry.at < CACHE_TTL_MS) { return entry.promise; }
-    var promise = loadAllPages(tab);
-    responseCache[tab] = { at: Date.now(), promise: promise };
-    function drop() {
-      if (responseCache[tab] && responseCache[tab].promise === promise) { delete responseCache[tab]; }
-    }
-    promise.then(function (data) { if (data.partial) { drop(); } }, drop);
-    return promise;
-  }
-
-  // Page 1 of a tab, cached for CACHE_TTL_MS. Hover / focus prefetch warms only this (not the
-  // whole crawl), and loadAllPages starts from it, so a prefetch is never wasted.
-  var firstPages = {};
-  function firstPage(tab) {
-    var entry = firstPages[tab];
-    if (entry && Date.now() - entry.at < CACHE_TTL_MS) { return entry.promise; }
-    var promise = getJson(tabUrl(tab, 1));
-    firstPages[tab] = { at: Date.now(), promise: promise };
-    promise.catch(function () {
-      if (firstPages[tab] && firstPages[tab].promise === promise) { delete firstPages[tab]; }
-    });
-    return promise;
-  }
-
+  // Hovering or focusing a tab warms its response.
   function prefetchTab(tab) {
-    if (VALID_TABS.indexOf(tab) >= 0) { firstPage(tab).catch(function () {}); }
+    if (VALID_TABS.indexOf(tab) >= 0) { getPage(tab).catch(function () {}); }
   }
 
   function clearCache() {
-    responseCache = {};
-    firstPages = {};
+    pageCache = {};
   }
 
   function tabFromQuery() {
@@ -313,11 +292,12 @@
     );
   }
 
-  // A detached list of filled-in cards, ready to swap in (see fetchTab).
-  function buildList(rows) {
+  // A detached list of filled-in cards, ready to swap in (see fetchTab). `offset` is the number
+  // of cards already in the row, so only the first cards of the row load their image eagerly.
+  function buildList(rows, offset) {
     var staged = document.createElement('ul');
     staged.innerHTML = rows.map(function (row, index) {
-      return '<li class="courses-listing-item">' + cardHtml(row, index) + '</li>';
+      return '<li class="courses-listing-item">' + cardHtml(row, index + (offset || 0)) + '</li>';
     }).join('');
     return staged;
   }
@@ -338,7 +318,7 @@
   }
 
   // Same shape as the server-rendered skeleton in courses.html.
-  function skeletonHtml() {
+  function skeletonHtml(count) {
     var item = '<li class="courses-listing-item lw-course-skeleton-item" aria-hidden="true">'
       + '<div class="lw-course-card lw-course-card--skeleton">'
       + '<div class="lw-course-card__image"></div>'
@@ -349,7 +329,7 @@
       + '<span class="lw-skeleton lw-skeleton--button"></span>'
       + '</div></div></li>';
     var html = '';
-    for (var i = 0; i < SKELETON_COUNT; i += 1) { html += item; }
+    for (var i = 0; i < (count || SKELETON_COUNT); i += 1) { html += item; }
     return html;
   }
 
@@ -513,7 +493,7 @@
     }
   }
 
-  // Scroll and resize both refresh the nav state and the dimming, once per frame.
+  // Scroll and resize refresh the nav state and the dimming, once per frame.
   function scheduleRowUpdate() {
     if (!focusFrame) {
       focusFrame = window.requestAnimationFrame(function () {
@@ -744,64 +724,121 @@
     list.addEventListener('dragstart', function (event) { event.preventDefault(); });
   }
 
+  // Screen readers: the total, now that the pager's "Showing N of M" is gone.
+  function announceCount() {
+    var el = document.querySelector('[data-lw-library="count"]');
+    if (!el) { return; }
+    var total = view.count;
+    var shown = view.rows.length;
+    if (!total) {
+      el.textContent = '';
+    } else if (total > shown) {
+      // Capped list: say how many exist and how many can be reached.
+      el.textContent = interpolate(
+        gettext('Showing %(shown)s of %(total)s courses in this list'),
+        { shown: shown, total: total },
+        true
+      );
+    } else if (total === 1) {
+      el.textContent = gettext('1 course in this list');
+    } else {
+      el.textContent = interpolate(gettext('%(total)s courses in this list'), { total: total }, true);
+    }
+  }
+
   function setBusy(busy) {
     var panel = document.getElementById('lw-courses-panel');
     if (panel) { panel.setAttribute('aria-busy', busy ? 'true' : 'false'); }
   }
 
   /**
-   * Fetch, build and fill in the cards off-screen, then swap them in at once. The current
-   * content stays put until then; the skeleton replaces it only if loading takes longer than
-   * SKELETON_DELAY_MS. Resolves to true when this response was rendered, false when a newer
-   * request superseded it.
+   * Fetch a tab's courses, build and fill in the cards off-screen, then swap them in at once. The current content stays put until then; the
+   * skeleton replaces it only if loading takes longer than SKELETON_DELAY_MS.
+   *
+   * A cached page 1 paints immediately, and a stale one is then refreshed in the background
+   * (stale-while-revalidate). `background` fetches always hit the network, show no loading state,
+   * and leave the row alone when nothing changed or the learner is mid-gesture.
+   *
+   * Resolves to true when this response was rendered, false when a newer request superseded it.
    */
   function fetchTab(tab, options) {
     var opts = options || {};
+    var background = Boolean(opts.background);
     var requestId = ++state.requestId;
     var isCurrent = function () { return requestId === state.requestId; };
-    setBusy(true);
-    if (state.skeletonShownAt === null) {
-      window.clearTimeout(state.skeletonTimer);
-      state.skeletonTimer = window.setTimeout(function () {
-        if (isCurrent()) { showSkeleton(tab); }
-      }, SKELETON_DELAY_MS);
+    if (!background) {
+      setBusy(true);
+      if (state.skeletonShownAt === null) {
+        window.clearTimeout(state.skeletonTimer);
+        state.skeletonTimer = window.setTimeout(function () {
+          if (isCurrent()) { showSkeleton(tab); }
+        }, SKELETON_DELAY_MS);
+      }
     }
 
+    var cached = !background ? peekPage(tab) : null;
+    var source = cached
+      ? Promise.resolve().then(function () { return normalizePage(cached.data); })
+      : getPage(tab, background).then(normalizePage);
+
     var staged = null;
-    return loadTab(tab).then(function (data) {
+    return source.then(function (data) {
       if (!isCurrent()) { return false; }
-      var results = Array.isArray(data.results) ? data.results : [];
-      staged = buildList(results);
+      var list = document.getElementById('lw-courses-listing');
+      var sig = JSON.stringify(data.results);
+      if (background) {
+        if (view.tab === tab && view.count === data.count && JSON.stringify(view.rows) === sig) {
+          view.loadedAt = Date.now();
+          return true;
+        }
+        if (list && /lw-courses-listing--(dragging|settling)/.test(list.className)) { return false; }
+      }
+      staged = buildList(data.results, 0);
       return enhanceCards(staged).then(function () {
         // A superseded request must not touch the newer one's skeleton timer.
-        return isCurrent() ? skeletonSettled() : null;
+        return isCurrent() && !background ? skeletonSettled() : null;
       }).then(function () {
         if (!isCurrent()) { return false; }
+        // A refresh in the background keeps the learner's place.
+        if (background && list) { state.savedScroll = list.scrollLeft; }
         commitList(staged);
         state.skeletonShownAt = null;
         // A new tab starts at the left edge; a refresh of the same tab (My List remove,
-        // unenroll) keeps the learner's place.
+        // unenroll, background revalidation) keeps the learner's place.
         if (opts.resetScroll) {
           resetRowScroll(0);
         } else if (state.savedScroll !== null) {
           resetRowScroll(state.savedScroll);
         }
         state.savedScroll = null;
+
+        view.tab = tab;
+        view.count = data.count;
+        view.rows = data.results;
+        view.loadedAt = Date.now();
+
         updateNav();
         updateCardFocus(true);
         setMessage('', false);
-        setEmptyState(tab, !results.length);
-        setBusy(false);
+        setEmptyState(tab, !data.results.length);
+        announceCount();
+        if (!background) { setBusy(false); }
+        // Showing a stale copy: refresh it quietly.
+        if (cached && !cached.fresh) { fetchTab(tab, { background: true }); }
         return true;
       });
     }).catch(function () {
-      if (!isCurrent()) { return false; }
+      if (!isCurrent() || background) { return false; }
       return skeletonSettled().then(function () {
         if (!isCurrent()) { return false; }
         commitList(document.createElement('ul'));
         state.skeletonShownAt = null;
+        view.tab = null;
+        view.count = 0;
+        view.rows = [];
         setEmptyState(tab, false);
         setMessage(gettext('Unable to load courses. Please try again.'), true);
+        announceCount();
         state.savedScroll = null;
         updateNav();
         setBusy(false);
@@ -848,6 +885,24 @@
     initRowGestures(list);
     list.addEventListener('scroll', scheduleRowUpdate, { passive: true });
     window.addEventListener('resize', scheduleRowUpdate);
+
+    // Coming back to this tab or window: if the open list is older than FOCUS_REVALIDATE_MS,
+    // check it again quietly (a failed first load is retried instead).
+    function onReturn() {
+      if (document.visibilityState === 'hidden' || state.skeletonTimer) { return; }
+      // A tab switch is still loading (view.tab only changes when it commits): don't let a
+      // background refresh of the old tab supersede it.
+      if (view.tab && view.tab !== state.tab) { return; }
+      if (!view.tab) {
+        fetchTab(state.tab, { resetScroll: true });
+        return;
+      }
+      if (Date.now() - view.loadedAt < FOCUS_REVALIDATE_MS) { return; }
+      view.loadedAt = Date.now();
+      fetchTab(view.tab, { background: true });
+    }
+    document.addEventListener('visibilitychange', onReturn);
+    window.addEventListener('focus', onReturn);
     var nav = navEl();
     if (nav) {
       nav.addEventListener('click', function (event) {
@@ -903,6 +958,20 @@
     });
 
     selectTab(tabFromQuery(), { silentFocus: true });
+  }
+
+  // Test hook (tests/js): the pure response and cache logic, exposed only when a test asks for it.
+  if (window.__LW_TEST__) {
+    window.__LW_TEST__.coursesTabs = {
+      getPage: getPage,
+      peekPage: peekPage,
+      tabUrl: tabUrl,
+      normalizePage: normalizePage,
+      clearCache: clearCache,
+      ttlFor: ttlFor,
+      TTL_MS: TTL_MS,
+      MAX_STALE_MS: MAX_STALE_MS,
+    };
   }
 
   if (document.readyState === 'loading') {
