@@ -272,6 +272,20 @@
     if (element) { element.hidden = !visible; }
   }
 
+  // Links on an enrolled learner's card. By default the title and the action open the course
+  // player (PRD LMS 5.2 for Continue Learning; the other tabs keep that behaviour). On the
+  // Assigned tab, as on the learner dashboard (PRD LMS 4.2), the title opens the course detail
+  // page and so does "Enroll and Start"; Resume and Revisit still open the course player.
+  function enrolledCardLinks(courseId, tab, hasStarted, isRevisit) {
+    var coursewareUrl = '/courses/' + encodeURIComponent(courseId) + '/courseware';
+    var aboutUrl = '/courses/' + encodeURIComponent(courseId) + '/about';
+    var isAssignedTab = tab === 'assigned';
+    return {
+      title: isAssignedTab ? aboutUrl : coursewareUrl,
+      cta: isAssignedTab && !hasStarted && !isRevisit ? aboutUrl : coursewareUrl,
+    };
+  }
+
   function renderCard(card, completionById, cardInfoById, certificateDateById, now) {
     var courseId = card.getAttribute('data-course-id');
     var completion = completionById[courseId];
@@ -337,16 +351,10 @@
     show(field(card, 'progress'), showProgress);
 
     if (completion) {
-      var coursewareUrl = '/courses/' + encodeURIComponent(courseId) + '/courseware';
-      var aboutUrl = '/courses/' + encodeURIComponent(courseId) + '/about';
-      // PRD LMS 5.2: for an enrolled learner, the card opens the course player, not the about page.
-      // Assigned tab, as the learner dashboard (PRD LMS 4.2): the title opens the course detail
-      // page, and so does "Enroll and Start"; Resume and Revisit still open the course player.
       var tabItem = card.closest('[data-lw-tab]');
-      var isAssignedTab = Boolean(tabItem) && tabItem.getAttribute('data-lw-tab') === 'assigned';
-      var opensDetail = isAssignedTab && !hasStarted && !isRevisit;
-      field(card, 'cta').setAttribute('href', opensDetail ? aboutUrl : coursewareUrl);
-      field(card, 'title-link').setAttribute('href', isAssignedTab ? aboutUrl : coursewareUrl);
+      var links = enrolledCardLinks(courseId, tabItem && tabItem.getAttribute('data-lw-tab'), hasStarted, isRevisit);
+      field(card, 'cta').setAttribute('href', links.cta);
+      field(card, 'title-link').setAttribute('href', links.title);
       var ctaLabel = gettext('Enroll and Start');
       if (isRevisit) {
         ctaLabel = gettext('Revisit Course');
@@ -658,4 +666,9 @@
 
   // Exposed for lw-courses-tabs.js after it injects card markup.
   window.lwCourseCardsEnhance = enhance;
+
+  // Pure helpers for tests/js/lw-course-cards.test.js.
+  if (window.__LW_TEST__) {
+    window.__LW_TEST__.courseCards = { enrolledCardLinks: enrolledCardLinks };
+  }
 }());

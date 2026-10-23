@@ -118,21 +118,29 @@ if apps.is_installed('course_assignments'):
 
   hero_title = HTML('<br />').join(course.display_name_with_default.split())
 
-  ## PRD LMS 9.3/9.4: the enrolled learner's CTA follows their progress, by the Learning
-  ## Library's rules (openlms_apis): started = course completion above 0%, completed = passed
-  ## or 100% without failing. Any lookup error keeps the plain "Start" CTA.
+  ## PRD LMS 9.3/9.4: the enrolled learner's CTA follows their progress, by the same rules as
+  ## the Learning Library and dashboard cards (openlms_apis): started = the card's rounded
+  ## completion above 0%; Review = completed (passed, or 100% without failing) or failed (100%
+  ## done, never passed), as the cards show "Revisit Course" for both. If the progress lookup
+  ## fails the CTA is "Start"; if only the grade lookup fails a passed course may show "Resume".
   course_started = False
-  course_completed = False
+  course_revisit = False
   if user.is_authenticated and registered:
       try:
-          from openlms_apis.library_helpers import _completed_course_keys, _course_aggregates
-          aggregates = _course_aggregates(user, [course.id])
-          course_completed = course.id in _completed_course_keys(user, [course.id], aggregates)
-          course_agg = aggregates.get(course.id)
-          course_started = bool(course_agg and course_agg.possible and course_agg.percent > 0)
+          from openlms_apis.completion_helpers import _completion_percent
+          from openlms_apis.library_helpers import (
+              _completed_course_keys, _course_aggregates, _failed_course_keys,
+          )
+          course_keys = [course.id]
+          aggregates = _course_aggregates(user, course_keys)
+          course_revisit = (
+              course.id in _completed_course_keys(user, course_keys, aggregates)
+              or course.id in _failed_course_keys(user, course_keys, aggregates)
+          )
+          course_started = _completion_percent(aggregates.get(course.id)) > 0
       except Exception:
           course_started = False
-          course_completed = False
+          course_revisit = False
   ## The Learning MFE's /course/<id> opens the learner's last unit, or the first unit when
   ## they have not started: "launches the course content" (9.3) and "Resume" (9.4).
   learning_mfe_url = getattr(settings, "LEARNING_MICROFRONTEND_URL", None)
@@ -247,9 +255,9 @@ if apps.is_installed('course_assignments'):
         <div class="course-details-cta-primary">
           %if user.is_authenticated and registered:
             %if show_courseware_link:
-            ## LMS 9.4: Review once completed (course outline), Resume once started (last unit),
+            ## LMS 9.4: Review once completed or failed (course outline), Resume once started (last unit),
             ## otherwise Start (first unit), e.g. a newly assigned course.
-            %if course_completed:
+            %if course_revisit:
             <a href="${course_target}" class="course-details-btn course-details-btn-primary">
               <img src="${static.url('images/course-about/play.svg')}" alt="" aria-hidden="true" width="24" height="24" />
               <span>${_("Review")}</span>
