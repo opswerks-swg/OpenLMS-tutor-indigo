@@ -310,10 +310,12 @@
 
   // A detached list of filled-in cards, ready to swap in (see fetchTab). `offset` is the number
   // of cards already in the row, so only the first cards of the row load their image eagerly.
-  function buildList(rows, offset) {
+  // data-lw-tab tells lw-course-cards.js which tab a card is in (Assigned links differ).
+  function buildList(rows, offset, tab) {
     var staged = document.createElement('ul');
     staged.innerHTML = rows.map(function (row, index) {
-      return '<li class="courses-listing-item">' + cardHtml(row, index + (offset || 0)) + '</li>';
+      return '<li class="courses-listing-item" data-lw-tab="' + escapeHtml(tab || '') + '">'
+        + cardHtml(row, index + (offset || 0)) + '</li>';
     }).join('');
     return staged;
   }
@@ -813,7 +815,7 @@
         // Swapping the cards would drop keyboard focus (or an open card menu) to <body>.
         if (list && list.contains(document.activeElement)) { return false; }
       }
-      staged = buildList(data.results, 0);
+      staged = buildList(data.results, 0, tab);
       return enhanceCards(staged).then(function () {
         // A superseded request must not touch the newer one's skeleton timer.
         return isCurrent() && !background ? skeletonSettled() : null;

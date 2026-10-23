@@ -338,9 +338,15 @@
 
     if (completion) {
       var coursewareUrl = '/courses/' + encodeURIComponent(courseId) + '/courseware';
-      field(card, 'cta').setAttribute('href', coursewareUrl);
+      var aboutUrl = '/courses/' + encodeURIComponent(courseId) + '/about';
       // PRD LMS 5.2: for an enrolled learner, the card opens the course player, not the about page.
-      field(card, 'title-link').setAttribute('href', coursewareUrl);
+      // Assigned tab, as the learner dashboard (PRD LMS 4.2): the title opens the course detail
+      // page, and so does "Enroll and Start"; Resume and Revisit still open the course player.
+      var tabItem = card.closest('[data-lw-tab]');
+      var isAssignedTab = Boolean(tabItem) && tabItem.getAttribute('data-lw-tab') === 'assigned';
+      var opensDetail = isAssignedTab && !hasStarted && !isRevisit;
+      field(card, 'cta').setAttribute('href', opensDetail ? aboutUrl : coursewareUrl);
+      field(card, 'title-link').setAttribute('href', isAssignedTab ? aboutUrl : coursewareUrl);
       var ctaLabel = gettext('Enroll and Start');
       if (isRevisit) {
         ctaLabel = gettext('Revisit Course');
