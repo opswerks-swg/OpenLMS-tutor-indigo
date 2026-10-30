@@ -10,8 +10,14 @@
  * Status badge on the image (CourseCardImage useStatusBadge): Completed (with its date) wins,
  * then "Overdue for N days", then "Due in N days", each with the due date.
  *
- * Enrolled + started  -> "In Progress" bar + Resume
- * Enrolled, 0%        -> Enroll and Start (learner dashboard BeginCourseButton label)
+ * Enrolled + started  -> "In Progress" bar + Resume. Started is the API's hasStarted (a block
+ *                        completed that the saved % may not include yet, or a saved % above 0;
+ *                        decided by the backend's has_started) or, from an older API,
+ *                        completion > 0, so a started course shows a
+ *                        0% bar while its % still rounds to 0 or awaits the backend's refresh
+ *                        (seconds; up to 10 minutes after a course publish).
+ * Enrolled, no block  -> Start (learner dashboard BeginCourseButton label; "Enroll and Start"
+ *                        is for a learner not enrolled yet, PRD LMS 9.3)
  * Not enrolled        -> View Course (about page), no progress
  *
  * Signed-in learners also get the actions menu: "Add to / Remove from my list" (POST/DELETE
@@ -52,17 +58,66 @@
       .catch(function () { return null; });
   }
 
-  // One request per page: every active enrollment with its completion %.
+  // Every active enrollment with its completion %. Shared by all cards rendered together, and
+  // refetched once older than COMPLETION_MAX_AGE_MS: lw-courses-tabs.js re-renders a tab when the
+  // learner returns to the page, and those cards must not reuse progress from before they left.
+  // Matches lw-courses-tabs.js FOCUS_REVALIDATE_MS.
+  var COMPLETION_MAX_AGE_MS = 30 * 1000;
   var completionPromise = null;
+  var completionFetchedAt = 0;
+  // A failed refetch (expired session, server error) resolves the last good list (after an
+  // unenroll, minus that course), so cards that lw-courses-tabs.js redraws keep their progress.
+  // Only when no request has succeeded yet does it resolve COMPLETION_UNAVAILABLE: empty, so a
+  // first render still draws every card, and refreshShownCards keeps the cards it already drew.
+  var COMPLETION_UNAVAILABLE = {};
+  var lastCompletionById = null;
+  // Requests are numbered so a slow, older response never replaces a newer list.
+  var completionRequestCount = 0;
+  var lastCompletionRequest = 0;
+  // Course id -> number of the last request sent before the learner unenrolled from it on this
+  // page. Responses to those requests still list the course, so it is removed from them; any
+  // request sent after the unenroll reflects the real enrollment (e.g. enrolled again).
+  var unenrolledBeforeRequest = {};
+
+  // After an unenroll: remove the course from the last good list and from responses to requests
+  // already sent, and drop the cached request so the next render (lw-courses-tabs.js reloads the
+  // tab) refetches.
+  function forgetCompletionList(courseId) {
+    completionPromise = null;
+    if (!courseId) { return; }
+    unenrolledBeforeRequest[courseId] = completionRequestCount;
+    if (lastCompletionById) {
+      var kept = Object.assign({}, lastCompletionById);
+      delete kept[courseId];
+      lastCompletionById = kept;
+    }
+  }
+
   function getCompletionById() {
-    if (!completionPromise) {
-      completionPromise = getJson(COMPLETION_URL).then(function (rows) {
+    if (!completionPromise || Date.now() - completionFetchedAt > COMPLETION_MAX_AGE_MS) {
+      completionFetchedAt = Date.now();
+      var requestNumber = ++completionRequestCount;
+      var request = getJson(COMPLETION_URL).then(function (rows) {
+        // A failed request is not kept: the next render asks again rather than showing every
+        // enrolled card as not enrolled until the cache expires. Only this request is dropped,
+        // not a newer one started meanwhile.
+        if (!Array.isArray(rows)) {
+          if (completionPromise === request) { completionPromise = null; }
+          return lastCompletionById || COMPLETION_UNAVAILABLE;
+        }
+        // Overtaken: a newer request already succeeded, so its list is newer than this one.
+        if (requestNumber < lastCompletionRequest) { return lastCompletionById; }
         var byId = {};
-        (Array.isArray(rows) ? rows : []).forEach(function (row) {
-          byId[row.courseId] = row;
+        rows.forEach(function (row) {
+          var sentBeforeUnenroll = Object.prototype.hasOwnProperty.call(unenrolledBeforeRequest, row.courseId)
+            && requestNumber <= unenrolledBeforeRequest[row.courseId];
+          if (!sentBeforeUnenroll) { byId[row.courseId] = row; }
         });
+        lastCompletionById = byId;
+        lastCompletionRequest = requestNumber;
         return byId;
       });
+      completionPromise = request;
     }
     return completionPromise;
   }
@@ -272,18 +327,50 @@
     if (element) { element.hidden = !visible; }
   }
 
-  // Links on an enrolled learner's card. By default the title and the action open the course
-  // player (PRD LMS 5.2 for Continue Learning; the other tabs keep that behaviour). On the
-  // Assigned tab, as on the learner dashboard (PRD LMS 4.2), the title opens the course detail
-  // page and so does "Enroll and Start"; Resume and Revisit still open the course player.
-  function enrolledCardLinks(courseId, tab, hasStarted, isRevisit) {
+  // Links on an enrolled learner's card. The action (Start, Resume, Revisit) opens the course
+  // player, as PRD LMS 9.3's CTA and Resume (4.5, 5.2) do; so does the title, except on the
+  // Assigned tab, where, as on the learner dashboard, clicking the course opens its detail page
+  // (PRD LMS 4.2). Exception: for a course that has not opened yet (start date in the future)
+  // Start and the title both open the detail page (product decision: not greyed out).
+  function enrolledCardLinks(courseId, tab, aboutUrlOverride, notOpenYet) {
     var coursewareUrl = '/courses/' + encodeURIComponent(courseId) + '/courseware';
-    var aboutUrl = '/courses/' + encodeURIComponent(courseId) + '/about';
-    var isAssignedTab = tab === 'assigned';
+    var aboutUrl = aboutUrlOverride || defaultAboutUrl(courseId);
     return {
-      title: isAssignedTab ? aboutUrl : coursewareUrl,
-      cta: isAssignedTab && !hasStarted && !isRevisit ? aboutUrl : coursewareUrl,
+      title: tab === 'assigned' || notOpenYet ? aboutUrl : coursewareUrl,
+      cta: notOpenYet ? aboutUrl : coursewareUrl,
     };
+  }
+
+  function defaultAboutUrl(courseId) {
+    return '/courses/' + encodeURIComponent(courseId) + '/about';
+  }
+
+  // The card's detail-page link as lw-courses-tabs.js first drew it (the row's url).
+  function cardAboutUrl(card, courseId) {
+    return card.getAttribute('data-about-url') || defaultAboutUrl(courseId);
+  }
+
+  // Resume vs Start. hasStarted comes from BlockCompletion and updates at once, even
+  // while the % still rounds to 0; the backend (completion_helpers.has_started) decides it.
+  // The % check is only for an API that does not send hasStarted yet.
+  function isStarted(completion) {
+    if (!completion) { return false; }
+    return typeof completion.hasStarted === 'boolean'
+      ? completion.hasStarted
+      : completion.completion > 0;
+  }
+
+  // Not open yet: the course's start date is in the future. Open edX keeps learners out until
+  // then (staff excepted), so Start opens the detail page instead of the courseware.
+  // Prerequisites are not checked.
+  function isNotOpenYet(courseStart, now, isStaff) {
+    var start = Date.parse(courseStart || '');
+    return !isStaff && isFinite(start) && start > now;
+  }
+
+  function isStaffViewer() {
+    var main = document.getElementById('main');
+    return Boolean(main && main.getAttribute('data-lw-staff') === 'true');
   }
 
   function renderCard(card, completionById, cardInfoById, certificateDateById, now) {
@@ -340,7 +427,7 @@
     // progress bar and a "Revisit Course" action instead; so does a failed one (not "In Progress").
     var isCompleted = Boolean(completion) && due.isCompleted;
     var isRevisit = isCompleted || (Boolean(completion) && due.isFailed);
-    var hasStarted = Boolean(completion) && completion.completion > 0 && !isRevisit;
+    var hasStarted = isStarted(completion) && !isRevisit;
     var showProgress = hasStarted;
     if (showProgress) {
       var percent = Math.max(0, Math.min(100, Math.round(completion.completion)));
@@ -352,16 +439,28 @@
 
     if (completion) {
       var tabItem = card.closest('[data-lw-tab]');
-      var links = enrolledCardLinks(courseId, tabItem && tabItem.getAttribute('data-lw-tab'), hasStarted, isRevisit);
+      var notOpenYet = !hasStarted && !isRevisit
+        && isNotOpenYet(card.getAttribute('data-course-start'), now, isStaffViewer());
+      var links = enrolledCardLinks(
+        courseId, tabItem && tabItem.getAttribute('data-lw-tab'), cardAboutUrl(card, courseId),
+        notOpenYet
+      );
       field(card, 'cta').setAttribute('href', links.cta);
       field(card, 'title-link').setAttribute('href', links.title);
-      var ctaLabel = gettext('Enroll and Start');
+      var ctaLabel = gettext('Start');
       if (isRevisit) {
         ctaLabel = gettext('Revisit Course');
       } else if (hasStarted) {
         ctaLabel = gettext('Resume');
       }
       field(card, 'cta-label').textContent = ctaLabel;
+    } else {
+      // Not enrolled (any more): the card's first state, as lw-courses-tabs.js draws it. A card
+      // drawn again after an unenroll elsewhere must not keep its Resume link.
+      var aboutUrl = cardAboutUrl(card, courseId);
+      field(card, 'cta').setAttribute('href', aboutUrl);
+      field(card, 'title-link').setAttribute('href', aboutUrl);
+      field(card, 'cta-label').textContent = gettext('View Course');
     }
     field(card, 'cta').classList.toggle('lw-course-card__cta--revisit', isRevisit);
     show(field(card, 'cta-icon'), hasStarted);
@@ -402,6 +501,40 @@
       cards.forEach(function (card) { renderCard(card, results[0], results[1], results[2], now); });
     });
   }
+
+  // Coming back to the page (another browser tab, or Back from the course): redraw the cards
+  // already shown with fresh progress, so a course the learner just started says Resume.
+  // lw-courses-tabs.js only redraws a tab when its list of courses changed, which starting a
+  // course does not do on My List, New or Suggested. renderCard only sets fields, so drawing a
+  // card again is safe.
+  // Returning more than this long after the last fetch refetches: long enough to merge the
+  // focus and visibilitychange of one return, short enough for "opened a course, completed a
+  // block, came back".
+  var RETURN_REFETCH_MS = 5 * 1000;
+  function refreshShownCards(force) {
+    if (document.visibilityState === 'hidden') { return; }
+    if (!force && completionPromise && Date.now() - completionFetchedAt <= RETURN_REFETCH_MS) {
+      return;
+    }
+    completionPromise = null;
+    var cards = Array.prototype.slice.call(
+      document.querySelectorAll('.lw-course-card[data-course-id][data-lw-ready]')
+    );
+    if (!cards.length) { return; }
+    var ids = cards.map(function (card) { return card.getAttribute('data-course-id'); });
+    Promise.all([getCompletionById(), loadCardInfo(ids), getCertificateDateById()]).then(function (results) {
+      // No completion list has loaded yet: keep the cards as drawn.
+      if (results[0] === COMPLETION_UNAVAILABLE) { return; }
+      var now = Date.now();
+      cards.forEach(function (card) { renderCard(card, results[0], results[1], results[2], now); });
+    });
+  }
+  document.addEventListener('visibilitychange', function () { refreshShownCards(false); });
+  window.addEventListener('focus', function () { refreshShownCards(false); });
+  // Restored from the back/forward cache: the page's scripts did not run again.
+  window.addEventListener('pageshow', function (event) {
+    if (event.persisted) { refreshShownCards(true); }
+  });
 
   // A saved rating returns the course's new average and count; merge them into the cached
   // card info and redraw that course's rating wherever it is shown.
@@ -589,9 +722,9 @@
       courseName: title ? title.textContent.trim() : '',
       returnFocus: toggle,
       onUnenrolled: function () {
-        // Enrollments changed: drop the cached completion list, then let lw-courses-tabs.js
-        // reload the open tab (its new cards fetch fresh data).
-        completionPromise = null;
+        // Enrollments changed: forget this course's progress, then let lw-courses-tabs.js
+        // reload the open tab (its render refetches completion).
+        forgetCompletionList(courseId);
         document.dispatchEvent(new CustomEvent('lw:enrollment-changed', { detail: { courseId: courseId } }));
       },
     });
@@ -669,6 +802,13 @@
 
   // Pure helpers for tests/js/lw-course-cards.test.js.
   if (window.__LW_TEST__) {
-    window.__LW_TEST__.courseCards = { enrolledCardLinks: enrolledCardLinks };
+    window.__LW_TEST__.courseCards = {
+      enrolledCardLinks: enrolledCardLinks,
+      getCompletionById: getCompletionById,
+      isNotOpenYet: isNotOpenYet,
+      forgetCompletionList: forgetCompletionList,
+      completionUnavailable: COMPLETION_UNAVAILABLE,
+      isStarted: isStarted,
+    };
   }
 }());
