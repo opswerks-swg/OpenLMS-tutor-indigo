@@ -132,12 +132,11 @@ $bw-focus: #43946c;
 
     &__search-icon {
         position: absolute;
-        top: 50%;
+        top: 8px;
         left: 12px;
         display: flex;
         width: 24px;
         height: 24px;
-        transform: translateY(-50%);
         pointer-events: none;
 
         img {

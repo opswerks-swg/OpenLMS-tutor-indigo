@@ -63,7 +63,7 @@ from django.utils.translation import ngettext
     % else:
     <div class="lw-browse__search">
       <span class="lw-browse__search-icon" aria-hidden="true">
-        <img src="${static.url('images/browse/search.png')}" alt="" width="24" height="24" />
+        <img src="${static.url('images/browse/search.svg')}" alt="" width="24" height="24" decoding="async" />
       </span>
       <input type="search" class="lw-browse__search-input" id="lw-browse-search"
              placeholder="${search_label}" aria-label="${search_label}"
@@ -76,9 +76,9 @@ from django.utils.translation import ngettext
         <a class="lw-browse__card" href="${search_catalog_url}?${urlencode({filter_param: card['id']})}">
           <span class="lw-browse__icon" aria-hidden="true">
             % if variant == 'provider':
-            <img src="${static.url('images/browse/provider.png')}" alt="" width="32" height="32" />
+            <img src="${static.url('images/browse/provider.svg')}" alt="" width="32" height="32" decoding="async" />
             % else:
-            <img src="${static.url('images/browse/topic.png')}" alt="" width="32" height="32" />
+            <img src="${static.url('images/browse/topic.svg')}" alt="" width="32" height="32" decoding="async" />
             % endif
           </span>
           <span class="lw-browse__body">
