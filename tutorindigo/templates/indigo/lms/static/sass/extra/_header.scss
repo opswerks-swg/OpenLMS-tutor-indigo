@@ -197,10 +197,17 @@ header.global-header {
                         color: $lw-nav-pill-color;
                     }
 
-                    // The current page (e.g. "By provider" on /provider)
+                    // The current Browse child (e.g. By Provider on /provider)
                     &.lw-nav-dropdown__item--active {
-                        color: $lw-nav-pill-color;
-                        font-weight: 700;
+                        background: #003366;
+                        color: #fff;
+                        font-weight: 400;
+
+                        &:hover,
+                        &:focus {
+                            background: #003366;
+                            color: #fff;
+                        }
                     }
                 }
             }

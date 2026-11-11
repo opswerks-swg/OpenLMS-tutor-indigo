@@ -13,17 +13,17 @@ from django.utils.translation import ngettext
   if variant == 'provider':
       title = _("Browse by Provider")
       subtitle = _("Explore courses organized by department and team")
-      other_label, other_url = _("Browse by Topic"), '/topics'
       search_label = _("Search providers...")
-      empty_text = _("No providers have published courses yet.")
+      empty_title = _("No providers found.")
+      empty_copy = _("Try adjusting your search query.")
       error_text = _("Providers couldn't be loaded. Please try again later.")
       filter_param = 'provider'
   else:
       title = _("Browse by Topic")
       subtitle = _("Explore courses organized by subject area and skill category")
-      other_label, other_url = _("Browse by Provider"), '/provider'
       search_label = _("Search topics...")
-      empty_text = _("No topics have published courses yet.")
+      empty_title = _("No topics found.")
+      empty_copy = _("Try adjusting your search query.")
       error_text = _("Topics couldn't be loaded. Please try again later.")
       filter_param = 'topic'
 
@@ -39,18 +39,27 @@ from django.utils.translation import ngettext
         <h1 class="lw-browse__title">${title}</h1>
         <p class="lw-browse__subtitle">${subtitle}</p>
       </div>
-      <a class="lw-browse__switch" href="${other_url}">
-        ${other_label}
-        <svg class="lw-browse__switch-icon" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false">
-          <path d="M4 12h15m-5-5 5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </a>
+      <nav class="lw-browse__modes" aria-label="${_('Browse')}">
+        <a class="lw-browse__mode${' lw-browse__mode--active' if variant == 'provider' else ''}" href="/provider"
+           % if variant == 'provider':
+           aria-current="page"
+           % endif
+           >${_("By Provider")}</a>
+        <a class="lw-browse__mode${' lw-browse__mode--active' if variant == 'topic' else ''}" href="/topics"
+           % if variant == 'topic':
+           aria-current="page"
+           % endif
+           >${_("By Topic")}</a>
+      </nav>
     </header>
 
     % if load_failed:
     <p class="lw-browse__message" role="alert">${error_text}</p>
     % elif not cards:
-    <p class="lw-browse__message">${empty_text}</p>
+    <div class="lw-browse__empty">
+      <h2 class="lw-browse__empty-title">${empty_title}</h2>
+      <p class="lw-browse__empty-copy">${empty_copy}</p>
+    </div>
     % else:
     <div class="lw-browse__search">
       <span class="lw-browse__search-icon" aria-hidden="true">
@@ -81,8 +90,10 @@ from django.utils.translation import ngettext
       % endfor
     </ul>
     ## Live region stays in the DOM (an element that appears is not announced); the script fills it.
-    <p class="lw-browse__message lw-browse__message--status" role="status" data-lw-browse-no-match
-       data-lw-browse-text="${_('No matches. Try a different search.')}"></p>
+    <div class="lw-browse__empty lw-browse__empty--status" role="status" data-lw-browse-no-match hidden>
+      <h2 class="lw-browse__empty-title">${empty_title}</h2>
+      <p class="lw-browse__empty-copy">${empty_copy}</p>
+    </div>
     % endif
   </div>
 </main>

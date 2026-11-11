@@ -84,30 +84,44 @@ $bw-focus: #43946c;
         color: $cd-slate-500 !important;
     }
 
-    // Tag the element as `a.lw-browse__switch` so it beats `a:not(.btn) { font-size: inherit }`.
-    a#{&}__switch,
-    &__switch {
-        display: inline-flex;
-        // The LMS has no global border-box: the 8px padding would make it 56px, not 40px.
+  // Segmented By Provider / By Topic (Figma vertical control on browse pages).
+    a#{&}__mode,
+    &__modes {
+        display: flex;
+        flex-direction: column;
+        flex-shrink: 0;
+        gap: 2px;
+        width: fit-content;
+        margin: 0;
+        padding: 3px;
+        border: 1px solid $cd-slate-200;
+        border-radius: 8px;
+        background: #fff;
+        list-style: none;
+    }
+
+    a#{&}__mode,
+    &__mode {
+        display: block;
         box-sizing: border-box;
-        align-items: center;
-        gap: 8px;
-        height: 40px;
         padding: 8px 12px;
         border-radius: 6px;
         @include cd-text(14px, 21px);
         font-size: 14px !important;
         line-height: 21px !important;
+        font-weight: 400 !important;
         color: $cd-slate-800 !important;
         text-decoration: none !important;
+        white-space: nowrap;
 
-        &:hover {
-            text-decoration: underline !important;
+        &:hover:not(&--active) {
+            color: $lw-card-blue-600 !important;
         }
-    }
 
-    &__switch-icon {
-        flex-shrink: 0;
+        &--active {
+            background: $lw-card-blue-600;
+            color: #fff !important;
+        }
     }
 
     &__search {
@@ -240,6 +254,43 @@ $bw-focus: #43946c;
         }
     }
 
+    // Empty catalog or no search matches (search MFE empty-state pattern).
+    &__empty {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: unquote('min(480px, calc(100vh - 320px))');
+        padding: 48px 24px;
+        text-align: center;
+
+        &[hidden] {
+            display: none !important;
+        }
+
+        &--status {
+            min-height: unquote('min(360px, calc(100vh - 380px))');
+        }
+    }
+
+    &__empty-title {
+        margin: 0 !important;
+        @include cd-text(20px, 28px, 500);
+        font-size: 20px !important;
+        line-height: 28px !important;
+        font-weight: 500 !important;
+        color: $cd-slate-800 !important;
+    }
+
+    &__empty-copy {
+        margin: 8px 0 0 !important;
+        max-width: 28rem;
+        @include cd-text(14px, 21px);
+        font-size: 14px !important;
+        line-height: 21px !important;
+        color: $cd-slate-500 !important;
+    }
+
     @media (max-width: 1100px) {
         &__grid {
             grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -287,9 +338,10 @@ body.indigo-dark-theme {
 
         .lw-browse__title,
         .lw-browse__subtitle,
-        .lw-browse__switch,
+        .lw-browse__mode:not(.lw-browse__mode--active),
         .lw-browse__name,
         .lw-browse__message,
+        .lw-browse__empty-title,
         .lw-browse__search-input,
         .lw-browse__search-icon {
             color: $text-color-d !important;

@@ -33,13 +33,22 @@
     var names = items.map(function (item) { return item.getAttribute('data-lw-browse-name'); });
     var status = document.querySelector('[data-lw-browse-no-match]');
 
+    var grid = document.getElementById('lw-browse-grid');
+
     input.addEventListener('input', function () {
       var visible = matchingIndexes(names, input.value);
+      var filtered = normalize(input.value).length > 0;
+      var showNoMatch = filtered && visible.length === 0;
+
       items.forEach(function (item, index) {
         item.hidden = visible.indexOf(index) === -1;
       });
+
       if (status) {
-        status.textContent = visible.length ? '' : status.getAttribute('data-lw-browse-text');
+        status.hidden = !showNoMatch;
+      }
+      if (grid) {
+        grid.hidden = showNoMatch;
       }
     });
   }
