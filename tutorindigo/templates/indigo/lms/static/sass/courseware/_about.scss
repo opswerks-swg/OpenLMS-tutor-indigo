@@ -11,6 +11,7 @@ $cd-blue-50: #e6f2ff;
 $cd-blue-500: #004080;
 $cd-orange-500: #f97316;
 $cd-amber-500: #f59e0b;
+$cd-green-600: #16a34a;
 $cd-max-width: 1344px;
 $cd-content-width: 901px;
 $cd-cta-width: 442.5px;
@@ -138,6 +139,26 @@ $cd-related-card-width: 437px;
         text-decoration: underline;
     }
 
+    // "By <provider>" (one link) and the tag chips link to the search MFE (filtered).
+    .course-details-provider-link {
+        color: $cd-slate-500 !important;
+        text-decoration: underline !important;
+
+        &:hover {
+            color: $cd-slate-800 !important;
+        }
+    }
+
+    .course-details-provider-link,
+    .course-details-tag-link {
+        border-radius: 4px;
+
+        &:focus-visible {
+            outline: 2px solid $cd-blue-500;
+            outline-offset: 2px;
+        }
+    }
+
     .course-details-stat {
         display: inline-flex;
         align-items: center;
@@ -174,6 +195,17 @@ $cd-related-card-width: 437px;
     .course-details-tag-muted {
         background: $cd-slate-100;
         border-color: $cd-slate-100;
+    }
+
+    .course-details-tag-link {
+        border-radius: 16px;
+        text-decoration: none !important;
+        transition: border-color 0.15s ease, color 0.15s ease;
+
+        &:hover {
+            border-color: $cd-slate-500;
+            color: $cd-slate-800 !important;
+        }
     }
 
     // Note card (Figma 2809:506 — accent pill + rounded body)
@@ -446,9 +478,21 @@ $cd-related-card-width: 437px;
         color: $cd-slate-800;
     }
 
-    // Outline accordion (mock until outline API ships)
+    // Outline accordion: the course's sections, subsections ("lessons") and units (published
+    // course blocks, see the outline block in course_about.html)
     .course-details-outline-list {
         max-width: 698px;
+    }
+
+    // Completed lesson / section (enrolled learners): a check at the row's far end
+    .course-details-outline-check {
+        flex-shrink: 0;
+        margin-left: auto;
+        color: $cd-green-600;
+
+        + .sr + .course-details-outline-chevron {
+            margin-left: 0;
+        }
     }
 
     .course-details-outline-toggle {
@@ -497,6 +541,106 @@ $cd-related-card-width: 437px;
             gap: 8px;
         }
     }
+
+    // Lesson (subsection) row: the title + arrow expand its units; a link icon opens the
+    // subsection in the courseware in a new window (enrolled learners, PRD LMS 9.7)
+    .course-details-outline-lessons .course-details-outline-lesson {
+        display: block;
+    }
+
+    .course-details-outline-lesson-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .course-details-outline-lesson-toggle,
+    .course-details-outline-lesson-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0;
+        border: none;
+        background: none;
+        box-shadow: none;
+        color: inherit;
+        // Same text as a plain lesson row (the page's base cd-text), not the LMS button styles.
+        @include cd-text;
+        letter-spacing: normal;
+        text-transform: none;
+        text-shadow: none;
+        white-space: normal;
+        text-align: left;
+    }
+
+    .course-details-outline-lesson-toggle {
+        cursor: pointer;
+
+        &:hover,
+        &:focus,
+        &:active {
+            color: inherit;
+            text-shadow: none;
+            background: none;
+            box-shadow: none;
+        }
+
+        &:focus-visible {
+            outline: 2px solid $cd-blue-500;
+            outline-offset: 2px;
+        }
+    }
+
+    .course-details-outline-lesson-marker {
+        flex-shrink: 0;
+        transition: transform 0.2s;
+    }
+
+    .course-details-outline-lesson.is-expanded .course-details-outline-lesson-marker {
+        transform: rotate(90deg);
+    }
+
+    .course-details-outline-lesson-link {
+        display: inline-flex;
+        flex-shrink: 0;
+        // Optical alignment with the title text (the icon sat below the x-height).
+        position: relative;
+        top: -2px;
+        color: $cd-slate-500;
+
+        &:hover {
+            color: $cd-blue-500;
+        }
+
+        &:focus-visible {
+            outline: 2px solid $cd-blue-500;
+            outline-offset: 2px;
+        }
+    }
+
+    .course-details-outline-units {
+        display: none;
+        flex-direction: column;
+        gap: 6px;
+        margin: 8px 0 0;
+        padding: 0 0 0 24px;
+        list-style: none;
+        @include cd-text(14px, 20px);
+        color: $cd-slate-600;
+    }
+
+    .course-details-outline-lesson.is-expanded .course-details-outline-units {
+        display: flex;
+    }
+
+    .course-details-outline-unit-dot {
+        flex-shrink: 0;
+        width: 4px;
+        height: 4px;
+        border-radius: 50%;
+        background: $cd-slate-500;
+    }
+
 
     .course-details-outline-section.is-expanded {
         .course-details-outline-chevron {
@@ -733,6 +877,7 @@ body.indigo-dark-theme {
         .course-details-rating-count,
         .course-details-published-date,
         .course-details-provider,
+        .course-details-provider-link,
         .course-details-stat-duration,
         .course-details-note-heading h2,
         .course-details-note-body p,
@@ -744,6 +889,27 @@ body.indigo-dark-theme {
         .course-details-related-duration,
         .course-details-related-progress-value {
             color: $text-color-d !important;
+        }
+
+        .course-details-outline-check {
+            color: $success-d;
+        }
+
+        // After the shared light-text rule above, so units stay muted in dark mode too.
+        .course-details-outline-units li {
+            color: rgba($text-color-d, 0.75) !important;
+        }
+
+        .course-details-outline-lesson-link {
+            color: rgba($text-color-d, 0.7);
+        }
+
+        .course-details-outline-lesson-link:hover {
+            color: $primary-d;
+        }
+
+        .course-details-outline-lesson-link:focus-visible {
+            outline-color: $primary-d;
         }
 
         .course-details-back-link:hover,
@@ -763,6 +929,21 @@ body.indigo-dark-theme {
         .course-details-related-card {
             background: $light-overlay-d;
             border-color: $border-color-d;
+        }
+
+        .course-details-tag-muted {
+            background: $primary-light-d;
+            border-color: $primary-light-d;
+            color: $text-color-d !important;
+        }
+
+        .course-details-tag-link:hover {
+            border-color: $border-color-d;
+        }
+
+        .course-details-provider-link:focus-visible,
+        .course-details-tag-link:focus-visible {
+            outline-color: $text-color-d;
         }
     }
 }
