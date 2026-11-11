@@ -84,44 +84,30 @@ $bw-focus: #43946c;
         color: $cd-slate-500 !important;
     }
 
-  // Segmented By Provider / By Topic (Figma vertical control on browse pages).
-    a#{&}__mode,
-    &__modes {
-        display: flex;
-        flex-direction: column;
-        flex-shrink: 0;
-        gap: 2px;
-        width: fit-content;
-        margin: 0;
-        padding: 3px;
-        border: 1px solid $cd-slate-200;
-        border-radius: 8px;
-        background: #fff;
-        list-style: none;
-    }
-
-    a#{&}__mode,
-    &__mode {
-        display: block;
+    // Tag the element as `a.lw-browse__switch` so it beats `a:not(.btn) { font-size: inherit }`.
+    a#{&}__switch,
+    &__switch {
+        display: inline-flex;
+        // The LMS has no global border-box: the 8px padding would make it 56px, not 40px.
         box-sizing: border-box;
+        align-items: center;
+        gap: 8px;
+        height: 40px;
         padding: 8px 12px;
         border-radius: 6px;
         @include cd-text(14px, 21px);
         font-size: 14px !important;
         line-height: 21px !important;
-        font-weight: 400 !important;
         color: $cd-slate-800 !important;
         text-decoration: none !important;
-        white-space: nowrap;
 
-        &:hover:not(&--active) {
-            color: $lw-card-blue-600 !important;
+        &:hover {
+            text-decoration: underline !important;
         }
+    }
 
-        &--active {
-            background: $lw-card-blue-600;
-            color: #fff !important;
-        }
+    &__switch-icon {
+        flex-shrink: 0;
     }
 
     &__search {
@@ -337,7 +323,7 @@ body.indigo-dark-theme {
 
         .lw-browse__title,
         .lw-browse__subtitle,
-        .lw-browse__mode:not(.lw-browse__mode--active),
+        .lw-browse__switch,
         .lw-browse__name,
         .lw-browse__message,
         .lw-browse__empty-title,
