@@ -1,0 +1,88 @@
+<%page args="variant, cards, load_failed" expression_filter="h"/>
+<%namespace name='static' file='../static_content.html'/>
+<%!
+from urllib.parse import urlencode
+from django.conf import settings
+from django.utils.translation import gettext as _
+from django.utils.translation import ngettext
+%>
+## Shared body of Browse by Provider (/provider) and Browse by Topic (/topics); the two pages
+## differ only in data, copy, icon and accent. Each card opens the search MFE filtered to that
+## value (?provider=<name> / ?topic=<tag id>), the same filter the search page's facets use.
+<%
+  if variant == 'provider':
+      title = _("Browse by Provider")
+      subtitle = _("Explore courses organized by department and team")
+      other_label, other_url = _("Browse by Topic"), '/topics'
+      search_label = _("Search providers...")
+      empty_text = _("No providers have published courses yet.")
+      error_text = _("Providers couldn't be loaded. Please try again later.")
+      filter_param = 'provider'
+  else:
+      title = _("Browse by Topic")
+      subtitle = _("Explore courses organized by subject area and skill category")
+      other_label, other_url = _("Browse by Provider"), '/provider'
+      search_label = _("Search topics...")
+      empty_text = _("No topics have published courses yet.")
+      error_text = _("Topics couldn't be loaded. Please try again later.")
+      filter_param = 'topic'
+
+  search_catalog_url = getattr(settings, 'SEARCH_CATALOG_URL', '/search') or '/search'
+  ## Only http(s) or a site path ("/search"): escaping does not stop a javascript: URL in an href.
+  if not search_catalog_url.lower().startswith(('https://', 'http://', '/')) or search_catalog_url.startswith(('//', '/\\')):
+      search_catalog_url = '/search'
+%>
+<main id="main" aria-label="Content" tabindex="-1" class="lw-browse lw-browse--${variant}">
+  <div class="lw-browse__inner">
+    <header class="lw-browse__head">
+      <div class="lw-browse__titles">
+        <h1 class="lw-browse__title">${title}</h1>
+        <p class="lw-browse__subtitle">${subtitle}</p>
+      </div>
+      <a class="lw-browse__switch" href="${other_url}">
+        ${other_label}
+        <svg class="lw-browse__switch-icon" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false">
+          <path d="M4 12h15m-5-5 5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </a>
+    </header>
+
+    % if load_failed:
+    <p class="lw-browse__message" role="alert">${error_text}</p>
+    % elif not cards:
+    <p class="lw-browse__message">${empty_text}</p>
+    % else:
+    <div class="lw-browse__search">
+      <span class="lw-browse__search-icon" aria-hidden="true">
+        <img src="${static.url('images/browse/search.png')}" alt="" width="24" height="24" />
+      </span>
+      <input type="search" class="lw-browse__search-input" id="lw-browse-search"
+             placeholder="${search_label}" aria-label="${search_label}"
+             aria-controls="lw-browse-grid" autocomplete="off" data-lw-browse-filter />
+    </div>
+
+    <ul class="lw-browse__grid" id="lw-browse-grid" role="list">
+      % for card in cards:
+      <li class="lw-browse__item" data-lw-browse-name="${card['name']}">
+        <a class="lw-browse__card" href="${search_catalog_url}?${urlencode({filter_param: card['id']})}">
+          <span class="lw-browse__icon" aria-hidden="true">
+            % if variant == 'provider':
+            <img src="${static.url('images/browse/provider.png')}" alt="" width="32" height="32" />
+            % else:
+            <img src="${static.url('images/browse/topic.png')}" alt="" width="32" height="32" />
+            % endif
+          </span>
+          <span class="lw-browse__body">
+            <span class="lw-browse__name">${card['name']}</span>
+            <span class="lw-browse__count">${ngettext("{count} course", "{count} courses", card['count']).format(count=card['count'])}</span>
+          </span>
+        </a>
+      </li>
+      % endfor
+    </ul>
+    ## Live region stays in the DOM (an element that appears is not announced); the script fills it.
+    <p class="lw-browse__message lw-browse__message--status" role="status" data-lw-browse-no-match
+       data-lw-browse-text="${_('No matches. Try a different search.')}"></p>
+    % endif
+  </div>
+</main>

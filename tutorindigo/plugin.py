@@ -184,6 +184,25 @@ COMPREHENSIVE_THEME_DIRS = ['/openedx/themes']
 )
 
 
+# Browse by Provider (/provider) and Browse by Topic (/topics): edx-platform's
+# static_template_view/urls.py serves each MKTG_URL_LINK_MAP entry at the exact
+# path ^<key.lower()>$ with the template static_templates/<key.lower()>.html; the
+# value is only the URL name. The templates live in
+# templates/indigo/lms/templates/static_templates/.
+BROWSE_PAGES_SETTINGS = """
+MKTG_URL_LINK_MAP.update({
+    "PROVIDER": "openlms_browse_provider",
+    "TOPICS": "openlms_browse_topics",
+})
+"""
+hooks.Filters.ENV_PATCHES.add_items(
+    [
+        ("openedx-lms-development-settings", BROWSE_PAGES_SETTINGS),
+        ("openedx-lms-production-settings", BROWSE_PAGES_SETTINGS),
+    ]
+)
+
+
 # Add react components and patches from tutor-indigo
 for path in itertools.chain(
     glob(

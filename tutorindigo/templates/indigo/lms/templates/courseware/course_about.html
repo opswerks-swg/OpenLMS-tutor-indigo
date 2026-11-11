@@ -1,9 +1,17 @@
 <%page expression_filter="h"/>
 <%namespace name='static' file='../static_content.html'/>
 <%!
+import copy
+import logging
+import math
+
 from django.apps import apps
 from django.conf import settings
+from django.core.cache import cache as outline_cache
+from django.db import transaction
+from django.db.models import Avg, Count
 from django.utils.translation import gettext as _
+from django.utils.translation import ngettext
 from django.utils.translation import pgettext
 from django.urls import reverse
 from django.utils import timezone
@@ -11,13 +19,28 @@ from lms.djangoapps.courseware.courses import get_course_about_section
 from openedx.core.djangolib.js_utils import js_escaped_string
 from openedx.core.djangolib.markup import clean_dangerous_html, HTML
 
+log = logging.getLogger(__name__)
+
 ## Matches DUE_SOON_WINDOW_DAYS in frontend-app-learner-dashboard.
 DUE_SOON_WINDOW_DAYS = 7
 
-AssignmentStatus = CourseAssignment = CourseExtraInfo = None
+## Course Outline: how long one course version's outline stays cached (see the outline block).
+OUTLINE_CACHE_SECONDS = 10 * 60
+
+## PRD LMS 9.9: the average and count show from this many ratings; fewer -> "Not yet rated".
+DEFAULT_RATING_MIN_COUNT = 5
+
+AssignmentStatus = CourseAssignment = CourseExtraInfo = CourseRating = None
 if apps.is_installed('course_assignments'):
-    from course_assignments.models import AssignmentStatus, CourseAssignment, CourseExtraInfo
+    from course_assignments.models import (
+        AssignmentStatus, CourseAssignment, CourseExtraInfo, CourseRating,
+    )
 %>
+
+<%def name="outline_check()">
+<svg class="course-details-outline-check" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><path d="M3.5 8.5l3 3 6-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+<span class="sr">${_("Completed")}</span>
+</%def>
 
 <%inherit file="../main.html" />
 <%block name="headextra">
@@ -61,6 +84,13 @@ if apps.is_installed('course_assignments'):
       }
     });
 
+    $('.course-details-outline-lesson-toggle').on('click', function() {
+      var $lesson = $(this).closest('.course-details-outline-lesson');
+      var expanded = $lesson.hasClass('is-expanded');
+      $lesson.toggleClass('is-expanded', !expanded);
+      $(this).attr('aria-expanded', !expanded);
+    });
+
     $('.course-details-outline-toggle').on('click', function() {
       var $section = $(this).closest('.course-details-outline-section');
       var expanded = $section.hasClass('is-expanded');
@@ -86,14 +116,181 @@ if apps.is_installed('course_assignments'):
       extra_info = None
       assignment = None
 
-  provider_name = course.display_org_with_default
-  content_type_label = _("Video")
-  duration_hours = None
+  ## Provider: the same value search indexes and filters on (CourseExtraInfo provider, else the
+  ## course org), so the "By <provider>" link always finds this course. Same rule inline if an
+  ## older openlms-apis lacks the helper. Content type falls back to "Other", as in search.
+  try:
+      from openlms_apis.search_index.fields import provider_name as _provider_name
+      provider_name = _provider_name(course.id, extra_info)
+  except Exception:
+      provider_name = (extra_info.get_provider_display() if extra_info is not None else "") or course.id.org
+  content_type_label = _("Other")
+  override_hours = None
   if extra_info is not None:
-      provider_name = extra_info.get_provider_display()
       content_type_label = extra_info.get_content_type_display()
-      duration_hours = extra_info.estimated_duration_hours
+      override_hours = extra_info.estimated_duration_hours
   effort = get_course_about_section(request, course, "effort")
+
+  ## Estimated duration (an estimate for the course, not the learner's time), by the same rule
+  ## and format as the course cards (card-info + learner-dashboard CourseCardMeta
+  ## formatDuration): the admin override (CourseExtraInfo), else Studio's effort as HH:MM or
+  ## hours. Under an hour shows minutes ("45 min"); otherwise hours to one decimal, rounded half
+  ## up like JS Math.round ("02:10" -> "2.2 hours"). Unparseable effort text shows "—", as the
+  ## cards show nothing for it.
+  duration_minutes = None
+  try:
+      from course_assignments.duration import resolve_duration
+      duration_minutes, duration_source = resolve_duration(override_hours, effort)
+  except ImportError:
+      log.warning("Course about %s: course_assignments.duration unavailable", course.id)
+      duration_minutes = round(float(override_hours) * 60) if override_hours else None
+  except Exception:
+      log.exception("Course about %s: could not resolve the duration", course.id)
+      duration_minutes = None
+  duration_label = None
+  if duration_minutes and duration_minutes > 0:
+      if duration_minutes < 60:
+          duration_label = _("{minutes} min est. duration").format(minutes=duration_minutes)
+      else:
+          duration_hours = math.floor(duration_minutes / 60 * 10 + 0.5) / 10
+          duration_label = ngettext(
+              "{hours} hour est. duration", "{hours} hours est. duration",
+              1 if duration_hours == 1 else 2,
+          ).format(hours="{:g}".format(duration_hours))
+
+  ## PRD LMS 9.9: average (one decimal) and count from the ratings service (course_assignments
+  ## CourseRating, as card-info and search), shown only from the minimum count; below it, or if
+  ## the lookup fails, "Not yet rated".
+  ## CODE REVIEW NOTE (product decision, Nov 2026): the minimum is a display rule on this page
+  ## only. The rating API, card-info and the dashboard/search cards still return/show averages
+  ## from 1 rating (PRD 9.10 asks cards to hide them too; a separate follow-up).
+  rating_count = 0
+  rating_average = None
+  if CourseRating is not None:
+      try:
+          ## A savepoint, so a failed query leaves the request's transaction usable.
+          with transaction.atomic():
+              rating_row = CourseRating.objects.filter(course_id=course.id).aggregate(
+                  average=Avg("rating"), count=Count("id")
+              )
+          rating_count = rating_row["count"] or 0
+          rating_average = rating_row["average"] if rating_count else None
+      except Exception:
+          log.exception("Course about %s: could not load ratings", course.id)
+          rating_count, rating_average = 0, None
+  rating_min_count = getattr(settings, "OPENLMS_RATING_MIN_COUNT", DEFAULT_RATING_MIN_COUNT)
+  show_rating = rating_average is not None and rating_count >= rating_min_count
+  rating_label = "{:.1f}".format(round(rating_average, 1)) if show_rating else None
+
+  ## PRD LMS 9.7: the outline as authored in Studio: sections, each with its subsections as
+  ## "lessons", and each lesson's units, from the published course blocks.
+  ##
+  ## CODE REVIEW NOTE (product decision, Nov 2026): this outline is shown to every learner who
+  ## can open this page, enrolled or not (the page itself needs a login: plugins/
+  ## require_login_middleware.py in OpenLMS), so learners can see what a course covers before
+  ## enrolling (PRD 9.7). It deliberately does NOT follow the course's Studio setting "Course
+  ## visibility in catalog / outline for unenrolled learners" (course_visibility) and is not the
+  ## per-user courseware outline. To limit what that exposes, a section, subsection or unit is
+  ## left out when it is:
+  ##   - visible to staff only ("Hide from learners"), or hidden from the table of contents;
+  ##   - released later than the course itself (start after both now and the course start;
+  ##     sections that open with the course still show before the course starts);
+  ##   - restricted to a cohort, content group or enrollment track (any group_access groups);
+  ##   - (units only) empty, or with only components the rules above leave out;
+  ##   - (subsections only) every unit is left out.
+  ## Components are checked only to decide whether a unit shows; they are not listed.
+  ##
+  ## The outline is the same for every learner, so it is cached per course version (a Studio
+  ## publish makes a new version, so a new key) for OUTLINE_CACHE_SECONDS; completion checks and
+  ## links are added per request on a copy. A release date passing shows up within that time.
+  ## Fails soft: on any error the Course Outline block is hidden.
+  outline_sections = []
+  try:
+      outline_version = getattr(course, "course_version", None) or getattr(course, "subtree_edited_on", None)
+      outline_cache_key = "openlms:course_about_outline:v1:{}:{}".format(course.id, outline_version)
+      ## No version to key on: build every time rather than risk a stale outline.
+      cached_outline = outline_cache.get(outline_cache_key) if outline_version else None
+      if cached_outline is not None:
+          outline_sections = copy.deepcopy(cached_outline)
+      else:
+          from xmodule.modulestore.django import modulestore
+
+          outline_now = timezone.now()
+          outline_course_start = course.start
+
+          def _plain_key(location):
+              ## The bare block-v1 key (no branch/version parts), as completion rows store it.
+              try:
+                  return str(location.for_branch(None).version_agnostic())
+              except AttributeError:
+                  return str(location)
+
+          def _listable(block):
+              if getattr(block, "visible_to_staff_only", False) or getattr(block, "hide_from_toc", False):
+                  return False
+              block_start = getattr(block, "start", None)
+              if block_start is not None and block_start > outline_now and (
+                  outline_course_start is None or block_start > outline_course_start
+              ):
+                  return False
+              group_access = getattr(block, "group_access", None) or {}
+              return not any(groups for groups in group_access.values())
+
+          def _listable_unit(vertical):
+              return _listable(vertical) and any(_listable(child) for child in vertical.get_children())
+
+          ## A savepoint, so a failed query leaves the request's transaction usable.
+          with transaction.atomic():
+              outline_course = modulestore().get_course(course.id, depth=4)
+              for chapter in (outline_course.get_children() if outline_course is not None else []):
+                  if not _listable(chapter):
+                      continue
+                  lessons = []
+                  for sequential in chapter.get_children():
+                      if not _listable(sequential):
+                          continue
+                      verticals = sequential.get_children()
+                      units = [
+                          {"key": _plain_key(vertical.location), "title": vertical.display_name_with_default}
+                          for vertical in verticals if _listable_unit(vertical)
+                      ]
+                      ## A subsection whose units are all left out (e.g. all staff-only) is too.
+                      if verticals and not units:
+                          continue
+                      lessons.append({
+                          "key": _plain_key(sequential.location),
+                          "title": sequential.display_name_with_default,
+                          "units": units,
+                      })
+                  if lessons:
+                      outline_sections.append({
+                          "key": _plain_key(chapter.location),
+                          "title": chapter.display_name_with_default,
+                          "lessons": lessons,
+                      })
+          if outline_version:
+              outline_cache.set(outline_cache_key, outline_sections, OUTLINE_CACHE_SECONDS)
+          outline_sections = copy.deepcopy(outline_sections)
+  except Exception:
+      log.exception("Course about %s: could not load the course outline", course.id)
+      outline_sections = []
+
+  ## Provider and tag chips (PRD LMS 7.6, 8.6) open the Browse by Provider / Topic directories
+  ## until per-provider and per-topic detail pages (LMS 7.3, 8.3) exist.
+  provider_url = "/provider" if provider_name else None
+  topics_url = "/topics"
+
+  ## The course's real topic tags (Open edX content tagging, OPENLMS_TOPIC_TAXONOMIES), as
+  ## assigned by the author; shared with search indexing in openlms_apis. Fails soft: no chips.
+  ## There is no difficulty source in this platform (no CourseExtraInfo field, no taxonomy), so
+  ## no difficulty chip is shown.
+  topic_tags = []
+  try:
+      from openlms_apis.search_index.topics import course_topics
+      topic_tags = course_topics(str(course.id))
+  except Exception:
+      log.exception("Course about %s: could not load topic tags", course.id)
+      topic_tags = []
 
   due_date = assignment.due_date if assignment is not None else None
   is_overdue = bool(due_date and assignment.is_overdue)
@@ -158,6 +355,53 @@ if apps.is_installed('course_assignments'):
   launch_course_url = (
       "{}/course/{}".format(learning_mfe_url.rstrip("/"), course.id) if learning_mfe_url else course_target
   )
+
+  ## PRD LMS 9.7: enrolled learners see a check on completed lessons and sections, from the
+  ## completion aggregator (as the dashboard %; it can trail a just-completed block by seconds).
+  ## A section also counts as completed once all of its listed lessons are.
+  completed_blocks = set()
+  if user.is_authenticated and registered and outline_sections:
+      try:
+          from completion_aggregator.models import Aggregator
+          with transaction.atomic():
+              completed_blocks = set(
+                  str(block_key) for block_key in Aggregator.objects.filter(
+                      user=user, course_key=course.id,
+                      aggregation_name__in=("chapter", "sequential", "vertical"),
+                      ## As openlms_apis is_fully_complete: nothing to complete is not "done".
+                      possible__gt=0, percent__gte=1.0,
+                  ).values_list("block_key", flat=True)
+              )
+      except Exception:
+          log.exception("Course about %s: could not load outline completion", course.id)
+          completed_blocks = set()
+  ## PRD LMS 9.7: for enrolled learners each lesson gets a link icon (new window) to that
+  ## subsection in the Learning MFE (/course/<course>/<subsection>, which opens its first or
+  ## last-visited unit); without the MFE, the LMS jump_to redirect. Not enrolled: no link, as the
+  ## courseware would refuse them.
+  outline_links = bool(user.is_authenticated and registered)
+  for outline_section in outline_sections:
+      for lesson in outline_section["lessons"]:
+          lesson["completed"] = str(lesson["key"]) in completed_blocks
+          for unit in lesson["units"]:
+              unit["completed"] = str(unit["key"]) in completed_blocks
+          ## As sections: also completed once all of its listed units are.
+          lesson["completed"] = lesson["completed"] or bool(lesson["units"]) and all(
+              unit["completed"] for unit in lesson["units"]
+          )
+          lesson["url"] = None
+          if outline_links:
+              if learning_mfe_url:
+                  lesson["url"] = "{}/course/{}/{}".format(
+                      learning_mfe_url.rstrip("/"), course.id, lesson["key"]
+                  )
+              else:
+                  lesson["url"] = reverse(
+                      "jump_to", kwargs={"course_id": str(course.id), "location": str(lesson["key"])}
+                  )
+      outline_section["completed"] = str(outline_section["key"]) in completed_blocks or all(
+          lesson["completed"] for lesson in outline_section["lessons"]
+      )
 %>
 
 <section class="course-info course-details-page" id="main">
@@ -176,22 +420,28 @@ if apps.is_installed('course_assignments'):
 
       <div class="course-details-rating" aria-label="${_('Course rating')}">
         <img src="${static.url('images/course-about/star.svg')}" alt="" aria-hidden="true" width="24" height="24" />
-        <span class="course-details-rating-value">0.0</span>
-        <span class="course-details-rating-count">(0 ${_("Ratings")})</span>
+        % if show_rating:
+        <span class="course-details-rating-value">${rating_label}</span>
+        <span class="course-details-rating-count">(${ngettext("{count} Rating", "{count} Ratings", rating_count).format(count=rating_count)})</span>
+        % else:
+        <span class="course-details-rating-value">${_("Not yet rated")}</span>
+        % endif
       </div>
 
       <div class="course-details-published">
         <span class="course-details-published-date">${_("Published")} ${published_label}</span>
+        % if provider_url:
+        <a class="course-details-provider course-details-provider-link" href="${provider_url}">${_("By")} ${provider_name}</a>
+        % else:
         <span class="course-details-provider">${_("By")} ${provider_name}</span>
+        % endif
       </div>
 
       <div class="course-details-stats">
         <span class="course-details-stat course-details-stat-duration">
           <img src="${static.url('images/course-about/clock.svg')}" alt="" aria-hidden="true" width="16" height="16" />
-          % if duration_hours:
-          ${duration_hours} ${_("hours est. duration")}
-          % elif effort:
-          ${effort}
+          % if duration_label:
+          ${duration_label}
           % else:
           ${"\u2014"} ${_("est. duration")}
           % endif
@@ -203,15 +453,17 @@ if apps.is_installed('course_assignments'):
       </div>
 
       <div class="course-details-tags" role="list">
-        <span class="course-details-tag" role="listitem">
-          <img src="${static.url('images/course-about/video.svg')}" alt="" aria-hidden="true" width="16" height="16" />
-          ${content_type_label}
+        <span role="listitem">
+          <a class="course-details-tag course-details-tag-link" href="${topics_url}">
+            <img src="${static.url('images/course-about/video.svg')}" alt="" aria-hidden="true" width="16" height="16" />
+            ${content_type_label}
+          </a>
         </span>
-        <span class="course-details-tag" role="listitem">
-          <img src="${static.url('images/course-about/gauge.svg')}" alt="" aria-hidden="true" width="16" height="16" />
-          ${_("EASY")}
+        % for topic in topic_tags:
+        <span role="listitem">
+          <a class="course-details-tag course-details-tag-muted course-details-tag-link" href="${topics_url}">${topic['name']}</a>
         </span>
-        <span class="course-details-tag course-details-tag-muted" role="listitem">${_("UI DESIGN")}</span>
+        % endfor
       </div>
     </header>
 
@@ -336,39 +588,71 @@ if apps.is_installed('course_assignments'):
       <p class="course-details-body-text">${_("Gain practical knowledge and hands-on experience in using Figma's core tools and features to design user interfaces, build interactive prototypes, and apply modern design workflows for real-world projects.")}</p>
     </section>
 
+    % if outline_sections:
     <section class="course-details-section course-details-outline" aria-labelledby="course-details-outline-heading">
       <h2 id="course-details-outline-heading" class="course-details-section-heading">${_("Course Outline")}</h2>
       <div class="course-details-outline-list">
-        <div class="course-details-outline-section is-expanded">
-          <button type="button" class="course-details-outline-toggle" aria-expanded="true">
+        ## The first section starts expanded (design); the rest are collapsed (PRD LMS 9.7).
+        % for outline_index, outline_section in enumerate(outline_sections):
+        <div class="course-details-outline-section${' is-expanded' if outline_index == 0 else ''}">
+          <button type="button" class="course-details-outline-toggle" aria-expanded="${'true' if outline_index == 0 else 'false'}" aria-controls="course-outline-section-${outline_index}">
             <img src="${static.url('images/course-about/book.svg')}" alt="" aria-hidden="true" width="24" height="24" />
-            <span class="course-details-outline-title">${_("Interface Basics")}</span>
-            <span class="course-details-outline-count">(3 ${_("Lessons")})</span>
+            <span class="course-details-outline-title">${outline_section["title"]}</span>
+            <span class="course-details-outline-count">(${ngettext("{count} Lesson", "{count} Lessons", len(outline_section["lessons"])).format(count=len(outline_section["lessons"]))})</span>
+            % if outline_section["completed"]:
+            ${outline_check()}
+            % endif
             <img class="course-details-outline-chevron" src="${static.url('images/course-about/chevron.svg')}" alt="" aria-hidden="true" width="16" height="16" />
           </button>
-          <ul class="course-details-outline-lessons">
-            <li><img src="${static.url('images/course-about/lesson-marker.svg')}" alt="" aria-hidden="true" width="16" height="16" />${_("Navigating Figma")}</li>
-            <li><img src="${static.url('images/course-about/lesson-marker.svg')}" alt="" aria-hidden="true" width="16" height="16" />${_("Creating Frames")}</li>
-            <li><img src="${static.url('images/course-about/lesson-marker.svg')}" alt="" aria-hidden="true" width="16" height="16" />${_("Working with Shapes")}</li>
+          <ul class="course-details-outline-lessons" id="course-outline-section-${outline_index}">
+            % for lesson_index, lesson in enumerate(outline_section["lessons"]):
+            <li class="course-details-outline-lesson">
+              <div class="course-details-outline-lesson-row">
+                ## The title and its arrow expand the lesson's units (dropdown).
+                % if lesson["units"]:
+                <button type="button" class="course-details-outline-lesson-toggle" aria-expanded="false" aria-controls="course-outline-lesson-${outline_index}-${lesson_index}">
+                  <img class="course-details-outline-lesson-marker" src="${static.url('images/course-about/lesson-marker.svg')}" alt="" aria-hidden="true" width="16" height="16" />
+                  <span>${lesson["title"]}</span>
+                </button>
+                % else:
+                <span class="course-details-outline-lesson-label">
+                  <img class="course-details-outline-lesson-marker" src="${static.url('images/course-about/lesson-marker.svg')}" alt="" aria-hidden="true" width="16" height="16" />
+                  <span>${lesson["title"]}</span>
+                </span>
+                % endif
+                % if lesson["url"]:
+                <a class="course-details-outline-lesson-link" href="${lesson['url']}" target="_blank" rel="noopener noreferrer" title="${_('Open in a new window')}" aria-label="${_('Open {title} in a new window').format(title=lesson['title'])}">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
+                </a>
+                % endif
+                % if lesson["completed"]:
+                ${outline_check()}
+                % endif
+              </div>
+              % if lesson["units"]:
+              <ul class="course-details-outline-units" id="course-outline-lesson-${outline_index}-${lesson_index}">
+                % for unit in lesson["units"]:
+                <li>
+                  <span class="course-details-outline-unit-dot" aria-hidden="true"></span>
+                  <span>${unit["title"]}</span>
+                  % if unit["completed"]:
+                  ${outline_check()}
+                  % endif
+                </li>
+                % endfor
+              </ul>
+              % endif
+            </li>
+            % endfor
           </ul>
         </div>
-        <div class="course-details-outline-section">
-          <button type="button" class="course-details-outline-toggle" aria-expanded="false">
-            <img src="${static.url('images/course-about/book.svg')}" alt="" aria-hidden="true" width="24" height="24" />
-            <span class="course-details-outline-title">${_("Advanced Features")}</span>
-            <span class="course-details-outline-count">(2 ${_("Lessons")})</span>
-            <img class="course-details-outline-chevron" src="${static.url('images/course-about/chevron.svg')}" alt="" aria-hidden="true" width="16" height="16" />
-          </button>
-          <ul class="course-details-outline-lessons">
-            <li><img src="${static.url('images/course-about/lesson-marker.svg')}" alt="" aria-hidden="true" width="16" height="16" />${_("Components and Variants")}</li>
-            <li><img src="${static.url('images/course-about/lesson-marker.svg')}" alt="" aria-hidden="true" width="16" height="16" />${_("Prototyping Basics")}</li>
-          </ul>
-        </div>
+        % endfor
       </div>
     </section>
+    % endif
 
     <section class="course-details-section course-details-related" aria-labelledby="course-details-related-heading">
-      <h2 id="course-details-related-heading" class="course-details-section-heading">${_("Related Courses - Mock recommendations · coming soon")}</h2>
+      <h2 id="course-details-related-heading" class="course-details-section-heading">${_("Related Courses (mock data · coming soon)")}</h2>
       <div class="course-details-related-grid">
         <article class="course-details-related-card">
           <div class="course-details-related-card-hero course-details-related-card-hero--ux">
