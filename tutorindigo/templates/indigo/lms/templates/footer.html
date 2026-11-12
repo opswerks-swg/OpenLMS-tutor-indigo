@@ -1,6 +1,8 @@
 ## mako
 <%page expression_filter="h"/>
 <%!
+  from datetime import date
+
   from django.utils.translation import gettext as _
   from openedx.core.djangoapps.lang_pref.api import footer_language_selector_is_enabled
 %>
@@ -8,7 +10,11 @@
 ## Mirrors the learner dashboard MFE footer (OpenLMS-frontend-component-footer
 ## SiteFooter) so legacy LMS pages and MFEs share one footer design.
 <%
-  site_name = static.get_platform_name()
+  # Product and company names for the legal lines, shared with the MFE footer: set as
+  # FOOTER_SITE_NAME / FOOTER_COMPANY_NAME in plugins/openlms_brand.py (not PLATFORM_NAME, which
+  # differs per environment). A site configuration can still override them.
+  site_name = static.get_value('FOOTER_SITE_NAME', getattr(settings, 'FOOTER_SITE_NAME', 'WerksLearning'))
+  company_name = static.get_value('FOOTER_COMPANY_NAME', getattr(settings, 'FOOTER_COMPANY_NAME', 'OpsWerks'))
   footer_links = [
     (_('Dashboard'), '/dashboard'),
     (_('Discover'), '/courses'),
@@ -29,10 +35,10 @@
         <img src="${static.url('images/opswerks.png')}" alt="${_('Powered by Open edX')}" />
       </a>
       <p class="site-footer__legal">
-        ${_('{site_name} is operated and maintained by {company_name}.').format(site_name=site_name, company_name=site_name)}
+        ${_('{site_name} is operated and maintained by {company_name}.').format(site_name=site_name, company_name=company_name)}
       </p>
       <p class="site-footer__legal">
-        ${_('© {year} {company_name}. All rights reserved.').format(year=2026, company_name=site_name)}
+        ${_('© {year} {company_name}. All rights reserved.').format(year=date.today().year, company_name=company_name)}
       </p>
     </div>
     <nav class="site-footer__links" aria-label="${_('Footer')}">
