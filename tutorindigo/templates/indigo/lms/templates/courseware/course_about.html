@@ -123,7 +123,7 @@ if apps.is_installed('course_assignments'):
   ## block newer than the saved %, or a saved % above 0; the backend refreshes the % seconds
   ## after each block);
   ## Review = completed (passed, or 100% without failing) or failed (100% done, never passed),
-  ## as the cards show "Revisit Course" for both. If the progress lookup fails the CTA is
+  ## as the cards show "Review" for both. If the progress lookup fails the CTA is
   ## "Start"; if only the grade lookup fails a passed course may show "Resume".
   course_started = False
   course_revisit = False
@@ -270,7 +270,7 @@ if apps.is_installed('course_assignments'):
             ## otherwise Start (first unit), e.g. a newly assigned course.
             %if course_revisit:
             <a href="${course_target}" class="course-details-btn course-details-btn-primary">
-              <img src="${static.url('images/course-about/play.svg')}" alt="" aria-hidden="true" width="24" height="24" />
+              <img src="${static.url('images/course-about/review.svg')}" alt="" aria-hidden="true" width="24" height="24" />
               <span>${_("Review")}</span>
             </a>
             %else:
