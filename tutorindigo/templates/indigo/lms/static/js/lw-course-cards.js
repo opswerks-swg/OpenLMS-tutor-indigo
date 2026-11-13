@@ -327,17 +327,18 @@
     if (element) { element.hidden = !visible; }
   }
 
-  // Links on an enrolled learner's card. The action (Start, Resume, Revisit) opens the course
-  // player, as PRD LMS 9.3's CTA and Resume (4.5, 5.2) do; so does the title, except on the
-  // Assigned tab, where, as on the learner dashboard, clicking the course opens its detail page
-  // (PRD LMS 4.2). Exception: for a course that has not opened yet (start date in the future)
-  // Start and the title both open the detail page (product decision: not greyed out).
-  function enrolledCardLinks(courseId, tab, aboutUrlOverride, notOpenYet) {
+  // Links on an enrolled learner's card. The title opens the course detail page on every tab,
+  // as on the learner dashboard (PRD LMS 4.2; team decision Nov 13, 2026). Start and Resume open
+  // the course player, as PRD LMS 9.3's CTA and Resume (4.5, 5.2) do. Review (completed or
+  // failed) opens the detail page, like History's Review (PRD LMS 12.11; team decision Nov 13).
+  // Exception: for a course that has not opened yet (start date in the future) Start also opens
+  // the detail page (product decision: not greyed out).
+  function enrolledCardLinks(courseId, tab, aboutUrlOverride, notOpenYet, isRevisit) {
     var coursewareUrl = '/courses/' + encodeURIComponent(courseId) + '/courseware';
     var aboutUrl = aboutUrlOverride || defaultAboutUrl(courseId);
     return {
-      title: tab === 'assigned' || notOpenYet ? aboutUrl : coursewareUrl,
-      cta: notOpenYet ? aboutUrl : coursewareUrl,
+      title: aboutUrl,
+      cta: notOpenYet || isRevisit ? aboutUrl : coursewareUrl,
     };
   }
 
@@ -424,7 +425,7 @@
     show(field(card, 'score-badge'), hasScore);
 
     // Progress + CTA, as CourseCardProgress / CourseCardActions. A completed course shows no
-    // progress bar and a "Revisit Course" action instead; so does a failed one (not "In Progress").
+    // progress bar and a "Review" action instead; so does a failed one (not "In Progress").
     var isCompleted = Boolean(completion) && due.isCompleted;
     var isRevisit = isCompleted || (Boolean(completion) && due.isFailed);
     var hasStarted = isStarted(completion) && !isRevisit;
@@ -443,13 +444,13 @@
         && isNotOpenYet(card.getAttribute('data-course-start'), now, isStaffViewer());
       var links = enrolledCardLinks(
         courseId, tabItem && tabItem.getAttribute('data-lw-tab'), cardAboutUrl(card, courseId),
-        notOpenYet
+        notOpenYet, isRevisit
       );
       field(card, 'cta').setAttribute('href', links.cta);
       field(card, 'title-link').setAttribute('href', links.title);
       var ctaLabel = gettext('Start');
       if (isRevisit) {
-        ctaLabel = gettext('Revisit Course');
+        ctaLabel = gettext('Review');
       } else if (hasStarted) {
         ctaLabel = gettext('Resume');
       }
@@ -463,7 +464,8 @@
       field(card, 'cta-label').textContent = gettext('View Course');
     }
     field(card, 'cta').classList.toggle('lw-course-card__cta--revisit', isRevisit);
-    show(field(card, 'cta-icon'), hasStarted);
+    // Play icon on Start and Resume (enrolled, not completed/failed); Review and View Course have none.
+    show(field(card, 'cta-icon'), Boolean(completion) && !isRevisit);
     // Card info only loads for signed-in learners; the rating API only accepts enrolled
     // ones (CourseCardMenu useOptionVisibility).
     show(field(card, 'menu'), Boolean(cardInfo));
