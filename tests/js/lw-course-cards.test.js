@@ -34,21 +34,22 @@ const COURSEWARE = `/courses/${encodeURIComponent(COURSE)}/courseware`;
 
 const ROW_ABOUT = '/courses/custom-about-link';
 const cases = [
-  // [name, tab, row about URL, not open yet, expected title, expected action]
+  // [name, tab, row about URL, not open yet, expected title, expected action, review (completed/failed)]
   ['Assigned: title opens the detail page (PRD LMS 4.2), the action opens the player', 'assigned', null, false, ABOUT, COURSEWARE],
-  ['Continue Learning: title and action open the player (PRD LMS 5.2)', 'continue', null, false, COURSEWARE, COURSEWARE],
-  ['Other tabs: title and action open the player', 'new', null, false, COURSEWARE, COURSEWARE],
-  ['A card outside a tab: title and action open the player', null, null, false, COURSEWARE, COURSEWARE],
+  ['Continue Learning: title opens the detail page, the action opens the player (PRD LMS 5.2)', 'continue', null, false, ABOUT, COURSEWARE],
+  ['Other tabs: title opens the detail page, the action opens the player', 'new', null, false, ABOUT, COURSEWARE],
+  ['A card outside a tab: title opens the detail page, the action opens the player', null, null, false, ABOUT, COURSEWARE],
   ['Course not open yet: Start and the title open the detail page', 'new', null, true, ABOUT, ABOUT],
   ["The row's own detail-page URL is used", 'assigned', ROW_ABOUT, true, ROW_ABOUT, ROW_ABOUT],
+  ['Review (completed or failed): title and action open the detail page', 'continue', null, false, ABOUT, ABOUT, true],
 ];
 
 const api = load();
 let failed = 0;
-cases.forEach(([name, tab, rowAbout, notOpenYet, title, cta]) => {
+cases.forEach(([name, tab, rowAbout, notOpenYet, title, cta, isRevisit = false]) => {
   try {
     // Compare fields: objects made inside the VM have another realm's prototype.
-    const links = api.enrolledCardLinks(COURSE, tab, rowAbout, notOpenYet);
+    const links = api.enrolledCardLinks(COURSE, tab, rowAbout, notOpenYet, isRevisit);
     assert.strictEqual(links.title, title, 'title link');
     assert.strictEqual(links.cta, cta, 'action link');
     console.log(`  ok   ${name}`);
