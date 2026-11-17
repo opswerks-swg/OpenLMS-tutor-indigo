@@ -1,0 +1,30 @@
+<%page expression_filter="h"/>
+<%!
+import logging
+from django.utils.translation import gettext as _
+log = logging.getLogger(__name__)
+%>
+<%inherit file="../main.html" />
+<%namespace name='static' file='../static_content.html'/>
+## Served at /topics (MKTG_URL_LINK_MAP in tutorindigo/plugin.py); login-only via
+## plugins/require_login_middleware.py in the OpenLMS parent repo.
+<%block name="pagetitle">${_("Browse by Topic")}</%block>
+<%block name="headextra">
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wght@8..144,400;8..144,500;8..144,700&display=swap" />
+</%block>
+<%block name="js_extra">
+  <script type="text/javascript" src="${static.url('js/lw-browse-filter.js')}"></script>
+</%block>
+<%
+  ## Real catalog data (openlms-apis); a failure still renders the page, with a message.
+  cards, load_failed = [], False
+  try:
+      from openlms_apis.browse_helpers import browse_topics
+      cards = browse_topics()
+  except Exception:
+      log.exception("Browse page /topics: could not load cards")
+      load_failed = True
+%>
+<%include file="../browse/_browse_page.html" args="variant='topic', cards=cards, load_failed=load_failed"/>

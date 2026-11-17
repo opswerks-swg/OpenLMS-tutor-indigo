@@ -1,0 +1,354 @@
+// Browse by Provider (/provider, Figma 499:4840) and Browse by Topic (/topics, Figma 502:4998):
+// one layout, two accents.
+// Tokens come from _about.scss and _course-card.scss (imported first): $cd-font, $cd-slate-*,
+// $cd-blue-*, $lw-card-blue-600, cd-text().
+
+$bw-purple-50: #f5f3ff;
+$bw-purple-600: #7c3aed;
+$bw-focus: #43946c;
+
+// `.main-container { padding-left/right: 15px !important }` in _extras.scss would otherwise
+// add 15px gutters that Figma does not have.
+#content.content-wrapper:has(.lw-browse),
+.main-container:has(.lw-browse),
+.container:has(.lw-browse) {
+    max-width: none;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    background: $cd-slate-50;
+}
+
+.lw-browse {
+    --bw-accent: #{$lw-card-blue-600};
+    --bw-accent-bg: #{$cd-blue-50};
+    --bw-count: #{$lw-card-blue-600};
+
+    width: 100%;
+    padding: 0 0 64px;
+    background: $cd-slate-50;
+    color: $cd-slate-800;
+    @include cd-text;
+
+    // Beat the global `font-family: $font-family-title !important` in _extras.scss.
+    &,
+    h1,
+    p,
+    a,
+    span,
+    input {
+        font-family: $cd-font !important;
+    }
+
+    &--topic {
+        --bw-accent: #{$bw-purple-600};
+        --bw-accent-bg: #{$bw-purple-50};
+        --bw-count: #{$bw-purple-600};
+    }
+
+    a:focus-visible,
+    &__search-input:focus-visible {
+        outline: 2px solid $bw-focus;
+        outline-offset: 2px;
+    }
+
+    &__inner {
+        max-width: $cd-max-width;
+        margin: 0 auto;
+        padding: 48px 48px 0;
+    }
+
+    &__head {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 16px 32px;
+        margin-bottom: 50px;
+    }
+
+    &__title {
+        margin: 0 0 8px !important;
+        @include cd-text(30px, 40px, 500);
+        font-size: 30px !important;
+        line-height: 40px !important;
+        font-weight: 500 !important;
+        color: $cd-slate-800 !important;
+        text-align: left !important;
+    }
+
+    &__subtitle {
+        margin: 0 !important;
+        @include cd-text(14px, 21px);
+        font-size: 14px !important;
+        line-height: 21px !important;
+        color: $cd-slate-500 !important;
+    }
+
+    // Tag the element as `a.lw-browse__switch` so it beats `a:not(.btn) { font-size: inherit }`.
+    a#{&}__switch,
+    &__switch {
+        display: inline-flex;
+        // The LMS has no global border-box: the 8px padding would make it 56px, not 40px.
+        box-sizing: border-box;
+        align-items: center;
+        gap: 8px;
+        height: 40px;
+        padding: 8px 12px;
+        border-radius: 6px;
+        @include cd-text(14px, 21px);
+        font-size: 14px !important;
+        line-height: 21px !important;
+        color: $cd-slate-800 !important;
+        text-decoration: none !important;
+
+        &:hover {
+            text-decoration: underline !important;
+        }
+    }
+
+    &__switch-icon {
+        flex-shrink: 0;
+    }
+
+    &__search {
+        position: relative;
+        max-width: 342px;
+        margin-bottom: 24px;
+    }
+
+    &__search-icon {
+        position: absolute;
+        top: 8px;
+        left: 12px;
+        display: flex;
+        width: 24px;
+        height: 24px;
+        pointer-events: none;
+
+        img {
+            display: block;
+            width: 24px;
+            height: 24px;
+        }
+    }
+
+    &__search-input {
+        display: block;
+        // normalize's input[type="search"] { box-sizing: content-box } outranks one class.
+        box-sizing: border-box !important;
+        width: 100%;
+        height: 40px !important;
+        margin: 0 !important;
+        padding: 0 11px 0 43px !important;
+        border: 1px solid transparent !important;
+        border-radius: 6px !important;
+        background: #fff !important;
+        box-shadow: none !important;
+        @include cd-text(14px, 21px);
+        font-size: 14px !important;
+        line-height: 21px !important;
+        color: $cd-slate-800 !important;
+
+        &::placeholder {
+            color: $cd-slate-500;
+            opacity: 1;
+        }
+    }
+
+    &__grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 24px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+    }
+
+    &__item[hidden] {
+        display: none;
+    }
+
+    &__card {
+        display: flex;
+        box-sizing: border-box;
+        align-items: flex-start;
+        gap: 16px;
+        height: 100%;
+        padding: 24px;
+        border: 1px solid $cd-slate-200;
+        border-radius: 12px;
+        background: #fff;
+        color: inherit !important;
+        text-decoration: none !important;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+
+        &:hover,
+        &:focus-visible {
+            border-color: var(--bw-accent);
+            box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
+        }
+    }
+
+    &__icon {
+        display: inline-flex;
+        flex: 0 0 48px;
+        align-items: center;
+        justify-content: center;
+        width: 48px;
+        height: 48px;
+        border-radius: 8px;
+        background: var(--bw-accent-bg);
+
+        img {
+            display: block;
+            width: 32px;
+            height: 32px;
+        }
+    }
+
+    &__body {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        min-width: 0;
+    }
+
+    &__name {
+        @include cd-text(18px, 27px, 500);
+        font-size: 18px !important;
+        line-height: 27px !important;
+        font-weight: 500 !important;
+        color: $cd-slate-800;
+        overflow-wrap: anywhere;
+    }
+
+    &__count {
+        @include cd-text(14px, 21px);
+        font-size: 14px !important;
+        line-height: 21px !important;
+        color: var(--bw-count);
+    }
+
+    &__message {
+        margin: 0 !important;
+        @include cd-text(16px, 24px);
+        color: $cd-slate-600 !important;
+
+        &--status:empty {
+            display: none;
+        }
+    }
+
+    // Empty catalog or no search matches (search MFE empty-state pattern).
+    &__empty {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: unquote('min(480px, calc(100vh - 320px))');
+        padding: 48px 24px;
+        text-align: center;
+
+        &[hidden] {
+            display: none !important;
+        }
+
+        &--status {
+            min-height: unquote('min(360px, calc(100vh - 380px))');
+        }
+    }
+
+    &__empty-title {
+        margin: 0 !important;
+        @include cd-text(20px, 28px, 500);
+        font-size: 20px !important;
+        line-height: 28px !important;
+        font-weight: 500 !important;
+        color: $cd-slate-800 !important;
+    }
+
+    &__empty-copy {
+        margin: 8px 0 0 !important;
+        max-width: 28rem;
+        @include cd-text(14px, 21px);
+        font-size: 14px !important;
+        line-height: 21px !important;
+        color: $cd-slate-500 !important;
+    }
+
+    @media (max-width: 1100px) {
+        &__grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    @media (max-width: 720px) {
+        &__inner {
+            padding: 32px 16px 0;
+        }
+
+        &__head {
+            margin-bottom: 32px;
+        }
+
+        &__title {
+            font-size: 28px;
+        }
+
+        &__search {
+            max-width: none;
+        }
+
+        &__grid {
+            grid-template-columns: minmax(0, 1fr);
+            gap: 16px;
+        }
+
+        &__card {
+            padding: 20px;
+        }
+    }
+}
+
+body.indigo-dark-theme {
+    #content.content-wrapper:has(.lw-browse),
+    .lw-browse {
+        background: $body-bg-d;
+    }
+
+    .lw-browse {
+        --bw-accent: #{$primary-d};
+        --bw-accent-bg: #{$primary-light-d};
+        --bw-count: #{$text-color-d};
+
+        .lw-browse__title,
+        .lw-browse__subtitle,
+        .lw-browse__switch,
+        .lw-browse__name,
+        .lw-browse__message,
+        .lw-browse__empty-title,
+        .lw-browse__search-input,
+        .lw-browse__search-icon {
+            color: $text-color-d !important;
+        }
+
+        .lw-browse__card,
+        .lw-browse__search-input {
+            background: $light-overlay-d !important;
+            border-color: $border-color-d !important;
+        }
+
+        .lw-browse__card:hover {
+            border-color: var(--bw-accent) !important;
+        }
+
+        // slate-500 is 2.5:1 on the dark input; this is 7:1.
+        .lw-browse__search-input::placeholder {
+            color: $gray-lighter;
+        }
+
+        .lw-browse__icon {
+            color: $text-color-d;
+        }
+    }
+}

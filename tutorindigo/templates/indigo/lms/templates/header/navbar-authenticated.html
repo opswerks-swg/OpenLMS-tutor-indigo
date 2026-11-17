@@ -5,11 +5,32 @@
 <%namespace name='static' file='../static_content.html' />
 <%namespace file='../main.html' import="login_query" />
 <%!
+from urllib.parse import urlsplit
+
 from django.conf import settings
 from django.urls import reverse
 from django.utils.translation import gettext as _
 from openedx.core.djangolib.markup import HTML
 from openedx.core.djangoapps.site_configuration import helpers as configuration_helpers
+
+def nav_link_active(url, request):
+    """
+    Whether a header nav link points at the current page. Keep in sync with isNavLinkActive in
+    frontend-component-header (src/utils/isNavLinkActive.js): path only (query and trailing
+    slash ignored); an absolute link must be on this host; a link also covers its sub-paths,
+    except /courses (Discover), whose /courses/<course id>/... pages are single courses.
+    """
+    if not url:
+        return False
+    link = urlsplit(url)
+    if link.netloc and link.netloc != request.get_host():
+        return False
+    link_path = link.path.rstrip('/') or '/'
+    current = request.path.rstrip('/') or '/'
+    if current == link_path:
+        return True
+    return link_path not in ('/', '/courses') and current.startswith(link_path + '/')
+
 
 ICON_PATHS = {
     'Home': (
@@ -124,27 +145,31 @@ HELP_SVG = (
       icon_svg  = HTML(SVG_OPEN + ICON_PATHS.get(icon_name, ICON_PATHS['Home']) + SVG_CLOSE)
     %>
     % if link.get('children'):
-    ## Dropdown (e.g. Browse) — mirrors the MFE header type: 'menu' item
+    ## Dropdown (e.g. Browse) — mirrors the MFE header type: 'menu' item. It is active when one
+    ## of its children is the current page; its own "url" (old-build fallback) is not checked.
+    <%
+      active_children = [nav_link_active(child.get('url'), request) for child in link['children']]
+    %>
     <div class="nav-item nav-tab lw-nav-dropdown">
-      <button type="button" class="tab-nav-link lw-nav-item lw-nav-dropdown__toggle"
+      <button type="button" class="${'active ' if any(active_children) else ''}tab-nav-link lw-nav-item lw-nav-dropdown__toggle"
               aria-expanded="false" aria-controls="lw-nav-dropdown-${loop.index}">
         ${icon_svg}
         <span class="lw-nav-label" data-label="${_(link['title'])}">${_(link['title'])}</span>
         ${HTML(CHEVRON_SVG)}
       </button>
       <div class="lw-nav-dropdown__menu" id="lw-nav-dropdown-${loop.index}">
-        % for child in link['children']:
-        <a class="lw-nav-dropdown__item" href="${child['url']}">${_(child['title'])}</a>
+        % for child, child_active in zip(link['children'], active_children):
+        <a class="lw-nav-dropdown__item${' lw-nav-dropdown__item--active' if child_active else ''}" href="${child['url']}"
+           % if child_active:
+           aria-current="page"
+           % endif
+           >${_(child['title'])}</a>
         % endfor
       </div>
     </div>
     % else:
     <%
-      ## /courses (Discover, the Learning Library) matches only itself: /courses/<course id>/...
-      ## are single course pages (e.g. the about page), not part of the Library.
-      link_path = link['url'].rstrip('/')
-      is_active = (link['url'] == request.path or request.path.rstrip('/') == link_path or
-                   (link_path != '/courses' and request.path.startswith(link_path + '/')))
+      is_active = nav_link_active(link.get('url'), request)
     %>
     <div class="nav-item nav-tab">
       <a class="${'active ' if is_active else ''}tab-nav-link lw-nav-item"
