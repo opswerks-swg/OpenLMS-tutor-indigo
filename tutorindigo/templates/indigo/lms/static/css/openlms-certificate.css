@@ -1,0 +1,560 @@
+/*
+ * OpenLMS (OpsWerks) public certificate page: lms/templates/certificates/valid.html.
+ * Plain CSS (no SCSS build). The certificate is an A4-landscape sheet whose type is sized in
+ * container query units (cqw), so the screen, mobile and printed versions stay proportional.
+ * Rendered by Tutor's Jinja pass: keep Jinja delimiters out of this file.
+ */
+
+:root {
+  --ow-green: #009368;
+  --ow-green-deep: #01603f;
+  --ow-ink: #14211c;
+  --ow-ink-soft: #3a4641;
+  --ow-muted: #6c7772;
+  --ow-lime: #a4be36;
+  --ow-bar-start: #c8e843;
+  --ow-bar-end: #0fb981;
+  --ow-page: #f8fafc;
+  --ow-paper: #ffffff;
+  --ow-line: #e3e8e6;
+  --ow-control-hover: #f1f5f3;
+  --ow-focus: #009368;
+  --ow-font: "Google Sans Flex", "Google Sans", "Helvetica Neue", sans-serif;
+  --ow-mono: "DM Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+
+/*
+ * The page inherits the LMS main.html (site header + footer) and its stylesheet, which forces
+ * `font-family: Rockford Sans !important` on body/h1-h6/p/button and styles bare buttons.
+ * Everything below is scoped to .ow-cert-shell so the header and footer keep their own styles.
+ */
+
+/* The LMS paints .window-wrap white; the page needs the tinted ground so the white
+   certificate sheet stands out from it. */
+body.ow-cert-page,
+body.ow-cert-page .window-wrap {
+  background: var(--ow-page);
+}
+
+.ow-cert-shell,
+.ow-cert-shell *,
+.ow-cert-shell *::before,
+.ow-cert-shell *::after {
+  box-sizing: border-box;
+}
+
+.ow-cert-shell {
+  color: var(--ow-ink);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+body.ow-cert-page .ow-cert-shell,
+body.ow-cert-page .ow-cert-shell :is(h1, h2, p, a, button, span, dt, dd) {
+  font-family: var(--ow-font) !important;
+}
+
+body.ow-cert-page .ow-cert-shell p.ow-cert__signatory-role,
+body.ow-cert-page .ow-cert-shell .ow-cert-meta code {
+  font-family: var(--ow-mono) !important;
+}
+
+.ow-cert-main:focus {
+  outline: none;
+}
+
+.ow-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.ow-cert-shell {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 24px 0 48px;
+}
+
+/* ---------- Action banner ---------- */
+
+.ow-cert-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 16px;
+  padding: 10px 12px 10px 16px;
+  background: var(--ow-paper);
+  border: 1px solid var(--ow-line);
+  border-radius: 10px;
+}
+
+.ow-cert-banner[hidden] {
+  display: none;
+}
+
+.ow-cert-banner__title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ow-ink);
+}
+
+.ow-cert-banner__icon {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: var(--ow-green);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.ow-cert-banner__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.ow-cert-shell .ow-cert-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: auto;
+  min-height: 36px;
+  margin: 0;
+  padding: 0 12px;
+  border: 1px solid var(--ow-line);
+  border-radius: 6px;
+  background: var(--ow-paper);
+  background-image: none;
+  box-shadow: none;
+  text-shadow: none;
+  color: var(--ow-ink);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0;
+  text-transform: none;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 120ms ease-out, border-color 120ms ease-out, color 120ms ease-out;
+}
+
+.ow-cert-shell .ow-cert-btn svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.ow-cert-shell .ow-cert-btn:hover {
+  background: var(--ow-control-hover);
+  border-color: #cfd8d4;
+}
+
+.ow-cert-shell .ow-cert-btn:active {
+  background: #e7eeeb;
+}
+
+.ow-cert-shell .ow-cert-btn:focus-visible {
+  outline: 2px solid var(--ow-focus);
+  outline-offset: 2px;
+}
+
+.ow-cert-shell .ow-cert-btn.is-done {
+  border-color: var(--ow-green);
+  color: var(--ow-green-deep);
+}
+
+.ow-cert-shell .ow-cert-btn--icon {
+  width: 36px;
+  padding: 0;
+  border-color: transparent;
+  background: #f1f3f2;
+  color: var(--ow-ink-soft);
+}
+
+.ow-cert-shell .ow-cert-btn--icon:hover {
+  background: #e6eae8;
+  border-color: transparent;
+}
+
+/* ---------- Certificate sheet ---------- */
+
+.ow-cert-main {
+  width: min(100%, 1040px);
+  margin: 16px auto 0;
+}
+
+.ow-cert {
+  position: relative;
+  container-type: inline-size;
+  /* A4 landscape; grows instead of clipping if a long name or course title needs more room. */
+  aspect-ratio: 297 / 210;
+  background: var(--ow-paper);
+  color: var(--ow-ink);
+  border-top: max(3px, 0.45cqw) solid transparent;
+  border-image: linear-gradient(90deg, var(--ow-bar-start), var(--ow-bar-end)) 1;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.ow-cert__art {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.ow-cert__graphic {
+  position: absolute;
+  top: 1%;
+  left: 64.8%;
+  width: 65.6%;
+  height: auto;
+  user-select: none;
+}
+
+[dir="rtl"] .ow-cert__graphic {
+  left: auto;
+  right: 64.8%;
+  transform: scaleX(-1);
+}
+
+.ow-cert__content {
+  position: relative;
+  max-width: 60cqw;
+  padding: 5.6cqw 0 5cqw 5.7cqw;
+}
+
+[dir="rtl"] .ow-cert__content {
+  padding: 5.6cqw 5.7cqw 5cqw 0;
+}
+
+.ow-cert__logo {
+  display: block;
+  width: 20.2cqw;
+  height: auto;
+}
+
+.ow-cert__title {
+  margin: 6.4cqw 0 0;
+  max-width: 40cqw;
+  color: var(--ow-lime);
+  font-family: var(--ow-font);
+  font-size: 4.9cqw;
+  font-weight: 700;
+  line-height: 1.08;
+  letter-spacing: 0;
+  text-align: start; /* the LMS stylesheet centers h1 */
+  text-transform: uppercase;
+}
+
+.ow-cert__lead,
+.ow-cert__course {
+  margin: 0;
+  color: var(--ow-ink);
+  font-size: 1.6cqw;
+  font-weight: 400;
+  line-height: 1.45;
+}
+
+.ow-cert__lead {
+  margin-top: 3.3cqw;
+}
+
+.ow-cert__name {
+  margin: 1.7cqw 0 0;
+  color: var(--ow-green);
+  font-size: 4cqw;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.005em;
+  overflow-wrap: anywhere;
+}
+
+.ow-cert__course {
+  margin-top: 2cqw;
+}
+
+.ow-cert__message {
+  margin: 4.4cqw 0 0;
+  max-width: 37.5cqw;
+  color: var(--ow-ink-soft);
+  font-size: 1.36cqw;
+  line-height: 1.5;
+}
+
+.ow-cert__signatories {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 1.5cqw 10.5cqw;
+  margin-top: 1.4cqw;
+}
+
+.ow-cert__signatory {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 10cqw;
+  text-align: center;
+}
+
+.ow-cert__signature {
+  display: block;
+  height: 5.8cqw;
+  width: auto;
+  max-width: 18cqw;
+  margin-bottom: -1.1cqw;
+  object-fit: contain;
+}
+
+.ow-cert__signatory-name {
+  position: relative;
+  margin: 0;
+  color: var(--ow-ink);
+  font-size: 1.15cqw;
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.ow-cert__signatory-role {
+  margin: 0.25cqw 0 0;
+  color: var(--ow-muted);
+  font-family: var(--ow-mono);
+  font-size: 1cqw;
+  line-height: 1.3;
+  letter-spacing: 0.14em;
+}
+
+/* ---------- Verification details (screen only) ---------- */
+
+.ow-cert-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 32px;
+  margin: 16px 0 0;
+  padding: 0 4px;
+  color: var(--ow-muted);
+  font-size: 13px;
+}
+
+.ow-cert-meta__item {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ow-cert-meta dt {
+  font-weight: 500;
+}
+
+.ow-cert-meta dd {
+  margin: 0;
+  color: var(--ow-ink-soft);
+}
+
+.ow-cert-meta code {
+  font-family: var(--ow-mono);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Small screens ---------- */
+
+@media (min-width: 768px) {
+  .ow-cert-shell {
+    padding: 28px 24px 56px;
+  }
+
+  .ow-cert-main {
+    width: min(84%, 1040px);
+    margin-top: 14px;
+  }
+}
+
+@media (max-width: 599px) {
+  .ow-cert-banner {
+    padding: 12px;
+  }
+
+  .ow-cert-banner__actions {
+    width: 100%;
+  }
+
+  .ow-cert-shell .ow-cert-btn {
+    flex: 1 1 auto;
+    min-height: 44px;
+  }
+
+  .ow-cert-shell .ow-cert-btn--icon {
+    flex: 0 0 44px;
+    width: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ow-cert-shell .ow-cert-btn {
+    transition: none;
+  }
+}
+
+
+/* ---------- Dark theme (header toggle adds body.indigo-dark-theme) ----------
+   Only the page around the certificate goes dark; the certificate stays a white sheet. */
+
+body.ow-cert-page.indigo-dark-theme {
+  --ow-page: #0d0d0e;
+  background: var(--ow-page);
+}
+
+body.ow-cert-page.indigo-dark-theme .ow-cert-banner {
+  background: #1a1b1d;
+  border-color: #2e3033;
+}
+
+body.ow-cert-page.indigo-dark-theme .ow-cert-banner__title {
+  color: #f8f8f8;
+}
+
+body.ow-cert-page.indigo-dark-theme .ow-cert-banner__icon {
+  stroke: #3cc596;
+}
+
+body.ow-cert-page.indigo-dark-theme .ow-cert-shell .ow-cert-btn {
+  background: #222326;
+  border-color: #3a3c40;
+  color: #f8f8f8;
+}
+
+body.ow-cert-page.indigo-dark-theme .ow-cert-shell .ow-cert-btn:hover {
+  background: #2c2e31;
+  border-color: #4a4d52;
+}
+
+body.ow-cert-page.indigo-dark-theme .ow-cert-shell .ow-cert-btn.is-done {
+  border-color: #3cc596;
+  color: #3cc596;
+}
+
+body.ow-cert-page.indigo-dark-theme .ow-cert-shell .ow-cert-btn--icon {
+  background: #2a2c2f;
+  border-color: transparent;
+  color: #d6d8da;
+}
+
+body.ow-cert-page.indigo-dark-theme .ow-cert-meta {
+  color: #a3a8ad;
+}
+
+body.ow-cert-page.indigo-dark-theme .ow-cert-meta dd {
+  color: #e2e4e6;
+}
+
+body.ow-cert-page.indigo-dark-theme .ow-cert {
+  box-shadow: 0 0 0 1px #2e3033;
+}
+
+/* ---------- Print / "Download PDF" (one A4-landscape page) ---------- */
+
+@page {
+  size: A4 landscape;
+  margin: 0;
+}
+
+@media print {
+  /* Print only the certificate: drop the site header, footer, banners and anything the LMS
+     appends to <body> (notification popovers, cookie banner, ...). */
+  body.ow-cert-page > :not(.window-wrap),
+  body.ow-cert-page .window-wrap > :not(.content-wrapper),
+  body.ow-cert-page .content-wrapper > :not(.ow-cert-shell),
+  .ow-cert-banner,
+  .ow-cert-meta {
+    display: none !important;
+  }
+
+  html,
+  body.ow-cert-page,
+  body.ow-cert-page .window-wrap {
+    min-height: 0 !important;
+    background: var(--ow-paper) !important;
+  }
+
+  body.ow-cert-page #content.content-wrapper,
+  body.ow-cert-page .window-wrap {
+    max-width: none !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .ow-cert-shell,
+  .ow-cert-main {
+    max-width: none;
+    width: 297mm;
+    margin: 0;
+    padding: 0;
+  }
+
+  .ow-cert {
+    width: 297mm;
+    height: 210mm;
+    aspect-ratio: auto;
+    overflow: hidden;
+    break-inside: avoid;
+  }
+
+  /* The LMS print stylesheet forces black text and transparent backgrounds with !important. */
+  .ow-cert,
+  .ow-cert * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .ow-cert-shell .ow-cert {
+    background: var(--ow-paper) !important;
+  }
+
+  .ow-cert-shell .ow-cert__title {
+    color: var(--ow-lime) !important;
+  }
+
+  .ow-cert-shell .ow-cert__name {
+    color: var(--ow-green) !important;
+  }
+
+  .ow-cert-shell .ow-cert__lead,
+  .ow-cert-shell .ow-cert__course,
+  .ow-cert-shell .ow-cert__signatory-name {
+    color: var(--ow-ink) !important;
+  }
+
+  .ow-cert-shell .ow-cert__message {
+    color: var(--ow-ink-soft) !important;
+  }
+
+  .ow-cert-shell .ow-cert__signatory-role {
+    color: var(--ow-muted) !important;
+  }
+}
