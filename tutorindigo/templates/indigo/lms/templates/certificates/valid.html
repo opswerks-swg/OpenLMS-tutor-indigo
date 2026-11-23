@@ -83,7 +83,13 @@ def signature_src(path):
                 <span class="ow-cert-btn__label">${_("Add to LinkedIn")}</span>
             </a>
             % endif
-            <button type="button" class="ow-cert-btn" id="ow-cert-download">
+            ## Saves a PDF file (js/ow-certificate-download.js); html2canvas loads on the first click.
+            <button type="button" class="ow-cert-btn" id="ow-cert-download"
+                    data-course-name="${accomplishment_copy_course_name}"
+                    data-html2canvas-src="${static.url('js/vendor/html2canvas.min.js')}"
+                    data-default="${_('Download PDF')}"
+                    data-busy="${_('Preparing PDF…')}"
+                    data-done="${_('Certificate downloaded')}">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v12M6.5 10.5 12 16l5.5-5.5M5 20h14"></path></svg>
                 <span class="ow-cert-btn__label">${_("Download PDF")}</span>
             </button>
@@ -195,13 +201,10 @@ def signature_src(path):
         }
     });
 
-    document.getElementById('ow-cert-download').addEventListener('click', function () {
-        window.print();
-    });
-
     document.getElementById('ow-cert-dismiss').addEventListener('click', function () {
         banner.hidden = true;
     });
 }());
 </script>
+<script src="${static.url('js/ow-certificate-download.js')}" defer></script>
 % endif

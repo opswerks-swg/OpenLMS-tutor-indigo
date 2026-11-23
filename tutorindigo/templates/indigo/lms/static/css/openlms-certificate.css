@@ -184,6 +184,12 @@ body.ow-cert-page .ow-cert-shell .ow-cert-meta code {
   color: var(--ow-green-deep);
 }
 
+/* "Download PDF" while the PDF is being generated (js/ow-certificate-download.js). */
+.ow-cert-shell .ow-cert-btn:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+
 .ow-cert-shell .ow-cert-btn--icon {
   width: 36px;
   padding: 0;
@@ -476,7 +482,7 @@ body.ow-cert-page.indigo-dark-theme .ow-cert {
   box-shadow: 0 0 0 1px #2e3033;
 }
 
-/* ---------- Print / "Download PDF" (one A4-landscape page) ---------- */
+/* ---------- Print (one A4-landscape page; also the "Download PDF" fallback) ---------- */
 
 @page {
   size: A4 landscape;
