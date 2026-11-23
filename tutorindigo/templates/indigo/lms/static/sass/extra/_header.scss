@@ -196,6 +196,19 @@ header.global-header {
                         background: none;
                         color: $lw-nav-pill-color;
                     }
+
+                    // The current Browse child (e.g. By Provider on /provider)
+                    &.lw-nav-dropdown__item--active {
+                        background: #003366;
+                        color: #fff;
+                        font-weight: 400;
+
+                        &:hover,
+                        &:focus {
+                            background: #003366;
+                            color: #fff;
+                        }
+                    }
                 }
             }
 
@@ -400,6 +413,14 @@ header.global-header {
             .lw-nav-dropdown__menu {
                 display: block;
             }
+        }
+
+        // A child is the current page (Browse on /provider, /topics): same pill as an active
+        // link. After .is-open so the weight stays bold while the menu is open.
+        .lw-nav-dropdown__toggle.active {
+            background: $lw-nav-pill-bg;
+            color: $lw-nav-pill-color;
+            font-weight: 700;
         }
 
         &.lw-help-menu {
@@ -732,6 +753,7 @@ body.indigo-dark-theme {
         }
 
         .lw-nav-dropdown__toggle:hover,
+        .lw-nav-dropdown__toggle.active,
         &.is-open .lw-nav-dropdown__toggle {
             background: rgba(209, 250, 229, 0.15);
             color: #6ee7b7;
@@ -751,7 +773,8 @@ body.indigo-dark-theme {
     // Beat the dark `.nav-links .main .nav-tab a:hover` pill rule for Browse rows
     header.global-header .nav-links .main .lw-nav-dropdown.nav-tab a.lw-nav-dropdown__item {
         &:hover,
-        &:focus {
+        &:focus,
+        &.lw-nav-dropdown__item--active {
             background: none;
             color: #6ee7b7;
         }
