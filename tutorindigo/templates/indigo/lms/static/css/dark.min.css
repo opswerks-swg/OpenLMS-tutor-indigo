@@ -1167,3 +1167,10 @@
 .font-roboto { font-family: Roboto; }
 .font-helvetica-neue { font-family: Helvetica Neue; }
 .font-arial { font-family: Arial; }
+
+/* Product tour: dark value for the Indigo-only --pgn-color-primary-light token the Indigo brand
+   CSS uses for the checkpoint and tour modal (see light.min.css). Indigo's own dark value. */
+[data-paragon-theme-variant="dark"] #pgn__checkpoint,
+[data-paragon-theme-variant="dark"] .new-user-tour-dialog {
+  --pgn-color-primary-light: #292A2C;
+}
