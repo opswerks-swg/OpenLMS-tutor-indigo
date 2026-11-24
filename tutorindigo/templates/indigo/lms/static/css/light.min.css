@@ -22737,3 +22737,14 @@ a.text-dark:focus {
 .border-dark {
   border-color: var(--pgn-color-dark-base) !important;
 }
+
+/* Product tour (Course Tools > Launch tour).
+   The Indigo brand package installed into the MFE images (brand-openedx#indigo-*) paints the
+   checkpoint, its arrows and the new-user tour modal hero with var(--pgn-color-primary-light),
+   an Indigo-only token this file does not define. Undefined, the background falls back to
+   transparent and the tour dialogs show the page through them. Scope the token to the tour so
+   nothing else that references it changes. Emerald-50, the light tint of our primary (#059669). */
+#pgn__checkpoint,
+.new-user-tour-dialog {
+  --pgn-color-primary-light: #ECFDF5;
+}
