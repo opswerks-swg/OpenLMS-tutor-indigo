@@ -465,6 +465,31 @@ header.global-header {
         }
     }
 
+    // Logged-out: navbar-not-authenticated.html nests .secondary inside .nav-links, so
+    // edx-platform's `.global-header .nav-links .secondary { margin: 15px 40px 0 0 }`
+    // pushes Sign in below the links and stretches the bar to 79px (content starts at 65px).
+    // Desktop only; the compact panel styles these buttons itself.
+    @media (min-width: $lw-header-compact-max + 0.02px) {
+        .nav-links .secondary {
+            float: none;
+            margin: 0 0 0 20px; // same spacing as the .main gap
+
+            .btn-holder {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                margin: 0;
+                letter-spacing: normal;
+
+                .nav-item {
+                    display: flex;
+                    margin: 0;
+                    padding: 0;
+                }
+            }
+        }
+    }
+
     .secondary {
         justify-self: end;
         margin: 0;

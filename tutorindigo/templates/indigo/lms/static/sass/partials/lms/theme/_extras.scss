@@ -113,6 +113,55 @@ header.global-header .nav-links .secondary .dropdown-user-menu {
     }
 }
 
+/////////////////// Signed out (templates/logout.html)
+// The shared #content min-height calc assumes a 75px header and 125px footer (actual: 65px
+// and 178–288px), which makes this short page scroll. Here the wrap is a viewport-tall flex
+// column instead: #content takes whatever the header offset and footer leave, at any width.
+.window-wrap:has(.lw-signout) {
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box; // compact header pads the wrap by the bar height
+    min-height: 100vh;
+    min-height: 100dvh;
+
+    > #content.content-wrapper {
+        flex: 1 0 auto;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+    }
+}
+
+.lw-signout {
+    // Centre the message in the space between header and footer
+    flex: 1 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 48px 16px;
+    text-align: center;
+
+    h1 {
+        margin: 0;
+    }
+
+    p {
+        margin: 0;
+        max-width: 60ch;
+    }
+}
+
+// The SSO logout iframes are only visibility:hidden, so they still take ~150px and
+// would push the centred block up. Take them out of flow; they keep loading.
+#iframeContainer {
+    position: absolute;
+    width: 0;
+    height: 0;
+    overflow: hidden;
+}
+
 /////////////////// Home page
 .home header {
   box-shadow: none;
