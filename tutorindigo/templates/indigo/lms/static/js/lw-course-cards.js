@@ -789,10 +789,14 @@
     items[(index + step + items.length) % items.length].focus();
   });
 
-  // Tabbing out of an open menu closes it. No relatedTarget means a mouse click (Safari and
-  // macOS Firefox don't focus clicked buttons); the click handler above deals with those.
+  // Tabbing out of an open menu closes it. Mouse clicks are left to the click handler above:
+  // Safari and macOS Firefox don't focus a clicked button, so on mousedown focus moves to the
+  // nearest focusable ancestor instead (<main id="main" tabindex="-1">, the skip-link target)
+  // or to nothing. Closing the menu then would hide the item before its click lands. Tab never
+  // moves focus to an ancestor of the menu, so that case is always a click.
   document.addEventListener('focusout', function (event) {
-    if (!event.relatedTarget) { return; }
+    var next = event.relatedTarget;
+    if (!next || (next.contains && next.contains(event.target))) { return; }
     var menu = event.target.closest && event.target.closest('.lw-course-card [data-lw="menu"]');
     if (menu && !menu.contains(event.relatedTarget)) {
       if (!menu.querySelector('[data-lw="menu-list"]').hidden) { setMenuOpen(menu, false); }
