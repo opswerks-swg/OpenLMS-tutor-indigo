@@ -116,23 +116,25 @@ indigo_styled_mfes = [
     "discussions",
 ]
 
-for mfe in indigo_styled_mfes:
-    hooks.Filters.ENV_PATCHES.add_items(
-        [
-            (
-                f"mfe-dockerfile-post-npm-install-{mfe}",
-                """
+# The Indigo brand core CSS ships `body, .text-monospace, * { font-family: "Inter",
+# sans-serif !important }`, which beats the OpenLMS typography tokens (Google Sans
+# Flex, static/css/openlms-typography.css) on every element. Strip that declaration
+# after install and fail the build if it is still there (e.g. after a brand bump).
+INDIGO_BRAND_INSTALL = r"""
 RUN npm install --no-audit --no-fund '@edx/brand@github:@edly-io/brand-openedx#indigo-2.5.3'
-""",  # noqa: E501
-            ),
-        ]
+RUN sed -i -E 's/font-family: *"?Inter"?, *sans-serif *!important;?//g' \
+        node_modules/@edx/brand/dist/core.css node_modules/@edx/brand/dist/core.min.css \
+    && ! grep -qE 'font-family: *"?Inter"?, *sans-serif *!important' \
+        node_modules/@edx/brand/dist/core.css node_modules/@edx/brand/dist/core.min.css
+"""  # noqa: E501
+
+for mfe in indigo_styled_mfes:
+    hooks.Filters.ENV_PATCHES.add_item(
+        (f"mfe-dockerfile-post-npm-install-{mfe}", INDIGO_BRAND_INSTALL)
     )
 
 hooks.Filters.ENV_PATCHES.add_item(
-    (
-        "mfe-dockerfile-post-npm-install-authn",
-        "RUN npm install --no-audit --no-fund '@edx/brand@github:@edly-io/brand-openedx#indigo-2.5.3'",  # noqa: E501
-    )
+    ("mfe-dockerfile-post-npm-install-authn", INDIGO_BRAND_INSTALL)
 )
 
 # Include js file in lms main.html, main_django.html, and certificate.html
@@ -277,18 +279,25 @@ PLUGIN_SLOTS.add_item(
     )
 )
 
+# brandOverride: global OpenLMS typography (Google Sans Flex) for every MFE.
+# Same file for both variants, but each URL must be unique: frontend-platform
+# looks up existing <link>s by href, so a shared URL is reassigned to the last
+# variant (dark) and stays disabled in light mode.
+openlms_typography_css = (
+    "https://{{ LMS_HOST }}/static/indigo/css/openlms-typography.css"
+)
 paragon_theme_urls = {
     "variants": {
         "light": {
             "urls": {
                 "default": "https://{{ LMS_HOST }}/static/indigo/css/light.min.css",
-                "brandOverride": "https://{{ LMS_HOST }}/static/indigo/css/light.min.css",
+                "brandOverride": f"{openlms_typography_css}?variant=light",
             },
         },
         "dark": {
             "urls": {
                 "default": "https://{{ LMS_HOST }}/static/indigo/css/dark.min.css",
-                "brandOverride": "https://{{ LMS_HOST }}/static/indigo/css/dark.min.css",
+                "brandOverride": f"{openlms_typography_css}?variant=dark",
             }
         },
     }
