@@ -124,6 +124,9 @@ from openedx.core.djangoapps.site_configuration import helpers as configuration_
 ## Inline (not js_extra): page templates like courses.html override js_extra and would drop this script.
 % if user.is_authenticated:
 <script src="${static.url('js/notifications.js')}"></script>
+## Instructor Membership > Batch Enrollment: required Due date (enrolling assigns the course).
+## No-op on other pages.
+<script src="${static.url('js/instructor-batch-assign.js')}"></script>
 % endif
 
 % if course:

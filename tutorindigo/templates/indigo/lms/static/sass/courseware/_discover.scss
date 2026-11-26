@@ -92,6 +92,10 @@ $lw-courses-font: 'Google Sans Flex', $font-family-title;
         font-weight: 400;
         line-height: 22px;
         letter-spacing: -0.02em;
+        // Figma 1484:4094 sets this line with two spaces between every word ("Discover  new  …",
+        // 573px wide); HTML collapses them. One extra Rockford Sans space = its 136/1000 em advance
+        // plus the -0.02em tracking = 0.116em (2.09px at 18px). The translated string stays single-spaced.
+        word-spacing: 0.116em;
 
         @include media-breakpoint-up(md) {
             min-height: 28px;
@@ -484,6 +488,16 @@ button.lw-courses-library__retry {
             &:hover,
             &:focus-within {
                 z-index: 1;
+            }
+
+            // Dimmed edge card (lw-courses-tabs.js PEEK_CLASS): the whole card is one click target
+            // that moves the row one card toward it; its links, buttons and hover effects are off.
+            &.lw-courses-listing-item--peek {
+                cursor: pointer;
+
+                > * {
+                    pointer-events: none;
+                }
             }
         }
 

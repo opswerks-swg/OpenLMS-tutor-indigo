@@ -472,6 +472,8 @@
     return list.querySelectorAll('.courses-listing-item:not(.lw-course-skeleton-item)');
   }
 
+  var PEEK_CLASS = 'lw-courses-listing-item--peek';
+
   // Per-card focus: a card's opacity follows how much of it is inside the middle column (the
   // row minus its side gutters). Fully inside = 1; leaving = dims toward the --lw-fade floor in
   // proportion. Measured directly (no IntersectionObserver: its root box differs between
@@ -507,6 +509,9 @@
       if (item.lwOpacity !== opacities[i]) {
         item.lwOpacity = opacities[i];
         item.style.opacity = opacities[i];
+        // A dimmed (partly outside the column) card is a "peek": clicking it moves the row one
+        // card toward it instead of opening it (see the click handler in initRowGestures).
+        item.classList.toggle(PEEK_CLASS, opacities[i] !== '1');
       }
     });
     if (instant) {
@@ -566,8 +571,13 @@
     var metrics = rowMetrics(list);
     if (!metrics) { return; }
     var now = window.performance.now();
-    var base = cardTarget.index !== null && now - cardTarget.at < 500 ? cardTarget.index : nearestCard(list.scrollLeft, metrics);
-    cardTarget.index = Math.max(0, Math.min(metrics.last, base + cards));
+    // From the row's actual position in cards (fractional), not the nearest snap index: at the
+    // end the row stops between snap points, and nearestCard() rounds that up to `last`, so
+    // "one card back" only travelled the fraction and snapped back (several clicks to move).
+    var base = cardTarget.index !== null && now - cardTarget.at < 500 ? cardTarget.index : list.scrollLeft / metrics.step;
+    // Round away from where the row is, so each click travels at least about one full card.
+    var target = cards < 0 ? Math.floor(base + cards + 0.01) : Math.ceil(base + cards - 0.01);
+    cardTarget.index = Math.max(0, Math.min(metrics.last, target));
     cardTarget.at = now;
     scrollToCard(list, metrics, cardTarget.index);
   }
@@ -740,6 +750,17 @@
       if (swallowClick) {
         event.preventDefault();
         event.stopPropagation();
+        return;
+      }
+      // A dimmed edge card only moves the row one card toward its side (like prev / next).
+      // Pointer clicks only (detail > 0): Enter on a focused link inside it still opens it.
+      var item = event.detail > 0 && event.target.closest && event.target.closest('.' + PEEK_CLASS);
+      if (item && list.contains(item)) {
+        event.preventDefault();
+        event.stopPropagation();
+        var rect = item.getBoundingClientRect();
+        var column = columnBox(list);
+        moveCards(list, rect.left + rect.width / 2 < column.left + column.width / 2 ? -1 : 1);
       }
     }, true);
 
