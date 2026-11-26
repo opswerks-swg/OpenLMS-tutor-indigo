@@ -7,11 +7,12 @@
 $primary: {{ INDIGO_PRIMARY_COLOR }};
 $primary-light: #F2F7F8;
 
-// Theme fonts
-$font-family-title: 'Rockford Sans', sans-serif;
-$serif: 'Rockford Sans';
-$f-sans-serif: 'Rockford Sans', 'Open Sans','Helvetica Neue', Helvetica, Arial, sans-serif;
-$font-weight-base: 200;
+// Theme fonts: Google Sans Flex (loaded by templates/header/header.html). MFEs get the
+// same font from static/css/openlms-typography.css via PARAGON_THEME_URLS.
+$font-family-title: 'Google Sans Flex', 'Segoe UI', -apple-system, sans-serif;
+$serif: 'Google Sans Flex', sans-serif;
+$f-sans-serif: 'Google Sans Flex', 'Segoe UI', -apple-system, 'Helvetica Neue', Arial, sans-serif;
+$font-weight-base: 400;
 $headings-font-weight: 400;
 // Initialize the Open edX Bootstrap theme
 @import 'edx-bootstrap/sass/open-edx/theme';

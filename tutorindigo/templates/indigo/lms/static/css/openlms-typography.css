@@ -1,0 +1,23 @@
+/*
+ * OpenLMS global typography: Google Sans Flex everywhere.
+ *
+ * Served to every MFE as the PARAGON_THEME_URLS `brandOverride` for both the light
+ * and dark variants (see plugin.py; each variant uses a distinct ?variant= URL), so it
+ * loads after light.min.css / dark.min.css.
+ * Those files set the Paragon font tokens (and #root) to Rockford Sans with
+ * !important; the `html:root` / `html #root` selectors below outrank them
+ * regardless of load order. MFE components should inherit these tokens instead of
+ * declaring "Google Sans Flex" themselves.
+ */
+@import url("https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wght@8..144,400;8..144,500;8..144,700&family=Google+Sans+Code:wght@400;500;700&display=swap");
+
+html:root {
+  --pgn-typography-font-family-sans-serif: "Google Sans Flex", "Segoe UI", -apple-system, sans-serif !important;
+  --pgn-typography-headings-font-family: var(--pgn-typography-font-family-sans-serif) !important;
+  /* 200 was tuned for Rockford Sans Extralight; Google Sans Flex is loaded from 400. */
+  --pgn-typography-font-weight-base: 400 !important;
+}
+
+html #root {
+  font-family: var(--pgn-typography-font-family-sans-serif) !important;
+}
