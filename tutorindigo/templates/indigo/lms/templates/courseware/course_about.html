@@ -49,6 +49,8 @@ if apps.is_installed('course_assignments'):
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wght@8..144,400;8..144,500;8..144,700&display=swap" />
+  ## Status badges use Google Sans Code (same id as the course cards / learner dashboard).
+  <link id="lw-google-sans-code-fonts" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Google+Sans+Code:wght@400;700&display=swap" />
 </%block>
 
 <%block name="js_extra">
@@ -324,6 +326,10 @@ if apps.is_installed('course_assignments'):
   ## "Start"; if only the grade lookup fails a passed course may show "Resume".
   course_started = False
   course_revisit = False
+  course_completed = False
+  course_failed = False
+  progress_percent = 0
+  completed_label = None
   if user.is_authenticated and registered:
       try:
           from openlms_apis.completion_helpers import _completion_percent
@@ -332,10 +338,28 @@ if apps.is_installed('course_assignments'):
           )
           course_keys = [course.id]
           aggregates = _course_aggregates(user, course_keys)
-          course_revisit = (
-              course.id in _completed_course_keys(user, course_keys, aggregates)
-              or course.id in _failed_course_keys(user, course_keys, aggregates)
+          failed_keys = _failed_course_keys(user, course_keys, aggregates)
+          course_failed = course.id in failed_keys
+          course_completed = course.id in _completed_course_keys(
+              user, course_keys, aggregates, failed=failed_keys
           )
+          course_revisit = course_completed or course_failed
+          progress_percent = _completion_percent(aggregates.get(course.id))
+          ## Completed date for the status row (passed, or reached 100%); none if the lookup fails.
+          if course_completed:
+              try:
+                  from openlms_apis.completion_helpers import _course_grades, _resolve_completed_at
+                  percent_grade, passed_timestamp = _course_grades(user, course_keys).get(
+                      course.id, (None, None)
+                  )
+                  completed_at = _resolve_completed_at(
+                      aggregates.get(course.id), percent_grade, passed_timestamp
+                  )
+                  if completed_at is not None:
+                      completed_label = completed_at.strftime('%b %d, %Y')
+              except Exception:
+                  log.exception("Course about %s: could not load the completion date", course.id)
+                  completed_label = None
           try:
               from openlms_apis.completion_helpers import has_started
               from openlms_apis.library_helpers import _last_activity
@@ -349,6 +373,21 @@ if apps.is_installed('course_assignments'):
       except Exception:
           course_started = False
           course_revisit = False
+          course_completed = False
+          course_failed = False
+          progress_percent = 0
+          completed_label = None
+
+  ## Status row under the hero (design): completed > failed > in progress > not started.
+  if course_completed:
+      status_state = "completed"
+  elif course_failed:
+      status_state = "failed"
+  elif course_started:
+      status_state = "in_progress"
+  else:
+      status_state = "not_started"
+  status_progress = 100 if status_state == "failed" else progress_percent
   ## The Learning MFE's /course/<id> opens the learner's last unit, or the first unit when
   ## they have not started: "launches the course content" (9.3) and "Resume" (9.4).
   learning_mfe_url = getattr(settings, "LEARNING_MICROFRONTEND_URL", None)
@@ -360,7 +399,7 @@ if apps.is_installed('course_assignments'):
   ## completion aggregator (as the dashboard %; it can trail a just-completed block by seconds).
   ## A section also counts as completed once all of its listed lessons are.
   completed_blocks = set()
-  if user.is_authenticated and registered and outline_sections:
+  if user.is_authenticated and registered and outline_sections and status_state != "completed":
       try:
           from completion_aggregator.models import Aggregator
           with transaction.atomic():
@@ -402,6 +441,7 @@ if apps.is_installed('course_assignments'):
       outline_section["completed"] = str(outline_section["key"]) in completed_blocks or all(
           lesson["completed"] for lesson in outline_section["lessons"]
       )
+
 %>
 
 <section class="course-info course-details-page" id="main">
@@ -496,14 +536,40 @@ if apps.is_installed('course_assignments'):
       </div>
       % endif
 
-      % if due_date:
+      % if status_state == "completed":
       <div class="course-details-status-row">
         <p class="course-details-status-text">
-          % if user.is_authenticated and registered:
-          ${_("You are enrolled in this course.")}
+          <span aria-hidden="true">&#127882;</span>
+          % if completed_label:
+          ${_("Congratulations! You have completed this course on {date}.").format(date=completed_label)}
           % else:
-          ${_("You have not started this course.")}
+          ${_("Congratulations! You have completed this course.")}
           % endif
+          ${_("Don't forget to rate this course!")}
+        </p>
+      </div>
+      % elif status_state in ("in_progress", "failed"):
+      <div class="course-details-status-progress">
+        <div class="course-details-status-progress-labels">
+          <div class="course-details-status-badges">
+            % if status_state == "failed":
+            <span class="course-details-status-badge course-details-status-badge-failed">${_("Failed")}</span>
+            % else:
+            <span class="course-details-status-badge course-details-status-badge-in-progress">${_("In Progress")}</span>
+            % endif
+            ## Past due (not completed): flagged as on the cards and Assigned tab, which rank Overdue first.
+            % if is_overdue:
+            <span class="course-details-status-badge course-details-status-badge-overdue">${_("Overdue")}</span>
+            % endif
+          </div>
+          <span class="course-details-status-progress-value">${status_progress}%</span>
+        </div>
+        <div class="course-details-progress-bar" role="progressbar" aria-label="${_('Course progress')}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${status_progress}"><span style="width: ${status_progress}%;"></span></div>
+      </div>
+      % elif due_date:
+      <div class="course-details-status-row">
+        <p class="course-details-status-text">
+          ${_("You have not started this course.")}
           ${_("Course is Due")} ${due_label}
         </p>
         % if is_overdue:
@@ -588,7 +654,8 @@ if apps.is_installed('course_assignments'):
       <p class="course-details-body-text">${_("Gain practical knowledge and hands-on experience in using Figma's core tools and features to design user interfaces, build interactive prototypes, and apply modern design workflows for real-world projects.")}</p>
     </section>
 
-    % if outline_sections:
+    ## Design: a completed course has no Course Outline (failed / in progress keep it).
+    % if outline_sections and status_state != "completed":
     <section class="course-details-section course-details-outline" aria-labelledby="course-details-outline-heading">
       <h2 id="course-details-outline-heading" class="course-details-section-heading">${_("Course Outline")}</h2>
       <div class="course-details-outline-list">
@@ -693,8 +760,8 @@ if apps.is_installed('course_assignments'):
                   <img src="${static.url('images/course-about/play.svg')}" alt="" aria-hidden="true" width="16" height="16" />
                   ${_("Resume")}
                 </button>
-                <button type="button" class="course-details-btn course-details-btn-icon" disabled aria-disabled="true" aria-label="${_('Add to list')}">
-                  <img src="${static.url('images/course-about/bookmark.svg')}" alt="" aria-hidden="true" width="16" height="16" />
+                <button type="button" class="course-details-btn course-details-btn-icon" disabled aria-disabled="true" aria-label="${_('More actions')}">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
                 </button>
               </div>
             </div>
@@ -726,8 +793,8 @@ if apps.is_installed('course_assignments'):
                   <img src="${static.url('images/course-about/play.svg')}" alt="" aria-hidden="true" width="16" height="16" />
                   ${_("Enroll and Start")}
                 </button>
-                <button type="button" class="course-details-btn course-details-btn-icon" disabled aria-disabled="true" aria-label="${_('Add to list')}">
-                  <img src="${static.url('images/course-about/bookmark.svg')}" alt="" aria-hidden="true" width="16" height="16" />
+                <button type="button" class="course-details-btn course-details-btn-icon" disabled aria-disabled="true" aria-label="${_('More actions')}">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
                 </button>
               </div>
             </div>
